@@ -11,7 +11,7 @@ Sends rendered resume pages as images to a vision model and evaluates them the w
 ## Install
 
 ```bash
-git clone https://github.com/coryking/cold-read.git
+git clone https://github.com/coryking/resume-cold-read.git
 cd cold-read
 uv pip install -e .
 ```
