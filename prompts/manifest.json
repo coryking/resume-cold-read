@@ -1,0 +1,58 @@
+{
+  "phases": [
+    {
+      "id": "calibration",
+      "name": "Vision Calibration",
+      "prompt_file": "calibration-prompt.md",
+      "fixed_images": ["calibration/images/page-1.png", "calibration/images/page-2.png"],
+      "role": null,
+      "notes": "Uses frozen PNGs with intentional traps. Grade against calibration/answer-key.md."
+    },
+    {
+      "id": "phase1-visual",
+      "name": "Visual / Information Architecture",
+      "prompt_file": "phase1-visual.md",
+      "role": null,
+      "notes": "Standalone visual eval. Role-agnostic. Tests layout, not content."
+    },
+    {
+      "id": "phase2-pm",
+      "name": "Content Eval — PM/TPM",
+      "prompt_file": "phase2-pm.md",
+      "role": "PM/TPM",
+      "notes": "Standalone content eval through PM hiring lens."
+    },
+    {
+      "id": "phase2-swe",
+      "name": "Content Eval — SWE",
+      "prompt_file": "phase2-swe.md",
+      "role": "SWE",
+      "notes": "Standalone content eval through SWE hiring lens."
+    },
+    {
+      "id": "jd-eval",
+      "name": "JD-Based Eval (Two-Pass)",
+      "composable": true,
+      "passes": [
+        {
+          "id": "jd-vision",
+          "name": "Vision / Visual Hierarchy",
+          "parts": ["preamble.md", "task-jd-vision.md"],
+          "notes": "No JD or company context. Pure visual evaluation."
+        },
+        {
+          "id": "jd-content",
+          "name": "Content Match vs. JD",
+          "parts": ["preamble.md", "company-{slug}.md", "task-jd-eval.md"],
+          "notes": "Company dossier is optional. Evaluates content against JD requirements."
+        }
+      ],
+      "notes": "Both passes run automatically when --jd is specified. Vision first, content second."
+    }
+  ],
+  "interpretation": {
+    "cross_model_consensus": "If 2+ models flag the same issue, treat as real signal.",
+    "single_model_flag": "Note but don't overreact. May be model-specific noise.",
+    "hallucination_check": "If a model references visual elements not on the page, discard its entire response."
+  }
+}
