@@ -1,6 +1,4 @@
-import base64
 import json
-import os
 import re
 import subprocess
 import tempfile
@@ -8,39 +6,42 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from openai import AzureOpenAI, OpenAI
 from rich.console import Console
 from rich.table import Table
 
 from cold_read import config as _config
 from cold_read import output as _output
 from cold_read import prompts as _prompts
+from cold_read.providers import SHAPES
+from cold_read.providers.shape import CredentialsMissingError, EvalResult
 
 console = Console()
+
+# Model registry. Each entry names a provider shape plus per-alias extras
+# that the shape consumes via its `run()` / `credential_test()` `extras`
+# dict. Unit 6 of the install-story plan moves `deployment` out of here
+# and into user-owned config.toml; for now it stays as a maintainer-shipped
+# default so the four currently-registered models keep working.
 MODELS: dict[str, dict] = {
     "gpt52": {
+        "shape": "azure-openai",
         "deployment": "gpt-52-chat",
-        "api_key_env": "AZURE_PRIMARY_API_KEY",
-        "endpoint_env": "AZURE_PRIMARY_ENDPOINT",
-        "client_type": "azure_openai",
         "api_version": "2024-12-01-preview",
         "reasoning": True,
     },
     "grok4": {
+        "shape": "azure-maas",
         "deployment": "grok-4-fast-reasoning",
-        "api_key_env": "AZURE_SECONDARY_API_KEY",
-        "endpoint_env": "AZURE_SECONDARY_ENDPOINT",
-        "client_type": "maas",
     },
     "claude-sonnet": {
+        "shape": "claude-cli",
+        "claude_alias": "sonnet",
         "deployment": "claude-sonnet-4-6",
-        "client_type": "claude_cli",
-        "model": "sonnet",
     },
     "claude-opus": {
+        "shape": "claude-cli",
+        "claude_alias": "opus",
         "deployment": "claude-opus-4-6",
-        "client_type": "claude_cli",
-        "model": "opus",
     },
 }
 
@@ -147,169 +148,26 @@ def _pdf_to_pngs(pdf_path: Path) -> list[Path]:
     return pngs
 
 
-def _encode_image(path: Path) -> str:
-    """Base64-encode an image file."""
-    return base64.b64encode(path.read_bytes()).decode("utf-8")
+def _run_model_eval(model_name: str, prompt_text: str, image_pngs: list[Path]) -> dict:
+    """Resolve the shape for `model_name` and invoke it.
 
+    Returns the legacy dict shape the output loop expects. Once the rest
+    of the pipeline speaks in `EvalResult` we can drop the translation.
+    """
+    model_config = MODELS[model_name]
+    shape_name = model_config["shape"]
+    shape = SHAPES[shape_name]
 
-def _build_client(model_config: dict) -> AzureOpenAI | OpenAI:
-    """Build the appropriate OpenAI client for a model config."""
-    key = os.environ.get(model_config["api_key_env"])
-    endpoint = os.environ.get(model_config["endpoint_env"])
-
-    if not key or not endpoint:
-        missing = []
-        if not key:
-            missing.append(model_config["api_key_env"])
-        if not endpoint:
-            missing.append(model_config["endpoint_env"])
-        raise typer.BadParameter(
-            f"Missing env vars: {', '.join(missing)}. Check your .env file."
-        )
-
-    if model_config["client_type"] == "azure_openai":
-        return AzureOpenAI(
-            azure_endpoint=endpoint,
-            api_key=key,
-            api_version=model_config["api_version"],
-        )
-    else:
-        # MaaS (Llama, etc.)
-        base_url = endpoint.rstrip("/") + "/openai/v1/"
-        return OpenAI(base_url=base_url, api_key=key)
-
-
-def _build_messages(
-    prompt_text: str, image_pngs: list[Path], max_images: int | None = None
-) -> list[dict]:
-    """Build the chat messages with images as base64 content parts."""
-    pages = image_pngs
-    truncated = False
-    if max_images and len(pages) > max_images:
-        pages = pages[:max_images]
-        truncated = True
-
-    content_parts: list[dict] = []
-
-    for png in pages:
-        b64 = _encode_image(png)
-        content_parts.append(
-            {
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"},
-            }
-        )
-
-    prompt_suffix = ""
-    if truncated:
-        prompt_suffix = (
-            f"\n\n[NOTE: This model can only process {max_images} image(s). "
-            f"You are seeing page(s) 1-{max_images} of {len(image_pngs)}.]"
-        )
-
-    content_parts.append({"type": "text", "text": prompt_text + prompt_suffix})
-
-    return [{"role": "user", "content": content_parts}]
-
-
-def _run_eval(
-    model_name: str, model_config: dict, messages: list[dict]
-) -> dict:
-    """Run a single eval against one model. Returns response dict."""
-    client = _build_client(model_config)
-    deployment = model_config["deployment"]
-
-    # GPT-5+ uses max_completion_tokens; older models and MaaS use max_tokens
-    token_param = (
-        "max_completion_tokens"
-        if model_config.get("client_type") == "azure_openai"
-        else "max_tokens"
-    )
-    extra_params: dict = {token_param: 16384}
-    if model_config.get("reasoning"):
-        extra_params["reasoning_effort"] = "high"
-
-    response = client.chat.completions.create(
-        model=deployment,
-        messages=messages,
-        **extra_params,
-    )
-
-    choice = response.choices[0]
-    usage = response.usage
+    extras = {k: v for k, v in model_config.items() if k != "shape"}
+    eval_result: EvalResult = shape.run(prompt_text, image_pngs, extras)
 
     return {
         "model": model_name,
-        "deployment": deployment,
-        "content": choice.message.content,
-        "prompt_tokens": usage.prompt_tokens if usage else 0,
-        "completion_tokens": usage.completion_tokens if usage else 0,
-        "total_tokens": (usage.prompt_tokens + usage.completion_tokens) if usage else 0,
-    }
-
-
-def _run_eval_claude_cli(
-    model_name: str, model_config: dict, prompt_text: str, image_pngs: list[Path]
-) -> dict:
-    """Run eval via Claude Code CLI in isolated mode. No API key needed."""
-    model_alias = model_config["model"]
-
-    # Build the user prompt: instruct Claude to read the images, then evaluate
-    image_instructions = "\n".join(
-        f"- Page {i+1}: {png.resolve()}" for i, png in enumerate(image_pngs)
-    )
-    user_prompt = (
-        f"Read each of the following resume page images using the Read tool, "
-        f"then follow the evaluation instructions in your system prompt.\n\n"
-        f"{image_instructions}"
-    )
-
-    cmd = [
-        "claude",
-        "-p",
-        "--model", model_alias,
-        "--tools", "Read",
-        "--setting-sources", "",
-        "--disable-slash-commands",
-        "--no-session-persistence",
-        "--dangerously-skip-permissions",
-        "--system-prompt", prompt_text,
-        "--output-format", "json",
-        user_prompt,
-    ]
-
-    # Strip CLAUDECODE env var so the CLI doesn't refuse to run inside our session
-    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
-
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=tempfile.gettempdir(),
-        env=env,
-        timeout=300,
-    )
-
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"claude CLI exited with code {result.returncode}: {result.stderr.strip()}"
-        )
-
-    # Parse JSON output for the response content
-    try:
-        output = json.loads(result.stdout)
-        content = output.get("result", result.stdout)
-    except json.JSONDecodeError:
-        # Fall back to raw text if JSON parsing fails
-        content = result.stdout.strip()
-
-    return {
-        "model": model_name,
-        "deployment": model_config["deployment"],
-        "content": content,
-        "prompt_tokens": 0,
-        "completion_tokens": 0,
-        "total_tokens": 0,
+        "deployment": model_config.get("deployment", ""),
+        "content": eval_result.content,
+        "prompt_tokens": eval_result.prompt_tokens,
+        "completion_tokens": eval_result.completion_tokens,
+        "total_tokens": eval_result.total_tokens,
     }
 
 
@@ -352,15 +210,17 @@ def eval_command(
         table = Table(title="Available Models")
         table.add_column("Name", style="bold")
         table.add_column("Deployment")
-        table.add_column("Type")
-        table.add_column("API Key Env")
+        table.add_column("Shape")
+        table.add_column("Env Vars")
 
-        for name, config in MODELS.items():
+        for name, cfg in MODELS.items():
+            shape = SHAPES[cfg["shape"]]
+            env_vars = ", ".join(f.name for f in shape.credential_fields) or "—"
             table.add_row(
                 name,
-                config["deployment"],
-                config["client_type"],
-                config.get("api_key_env", "—"),
+                cfg.get("deployment", "—"),
+                shape.name,
+                env_vars,
             )
 
         console.print(table)
@@ -460,8 +320,7 @@ def eval_command(
             eval_num += 1
             model_config = MODELS[model_name]
             max_imgs = model_config.get("max_images")
-            messages = _build_messages(prompt_text, phase_pngs, max_images=max_imgs)
-            deployment = model_config["deployment"]
+            deployment = model_config.get("deployment", "")
             reasoning = "reasoning" if model_config.get("reasoning") else "standard"
 
             console.rule(f"[bold]({eval_num}/{total_evals}) {model_name} / {prompt_id}[/bold]")
@@ -478,12 +337,10 @@ def eval_command(
             console.print(f"  [dim]Calling API...[/dim]")
 
             try:
-                if model_config["client_type"] == "claude_cli":
-                    result = _run_eval_claude_cli(
-                        model_name, model_config, prompt_text, phase_pngs
-                    )
-                else:
-                    result = _run_eval(model_name, model_config, messages)
+                result = _run_model_eval(model_name, prompt_text, phase_pngs)
+            except CredentialsMissingError as e:
+                console.print(f"  FAILED: {e}\n", highlight=False)
+                continue
             except Exception as e:
                 console.print(f"  FAILED: {type(e).__name__}: {e}\n", highlight=False)
                 continue
