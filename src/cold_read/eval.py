@@ -4,7 +4,6 @@ import os
 import re
 import subprocess
 import tempfile
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -14,6 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from cold_read import config as _config
+from cold_read import output as _output
 from cold_read import prompts as _prompts
 
 console = Console()
@@ -313,26 +313,6 @@ def _run_eval_claude_cli(
     }
 
 
-def _save_result(
-    model_name: str, prompt_id: str, content: str, pdf_name: str
-) -> Path:
-    """Save eval result to cold-read-output/."""
-    evals_dir = Path("cold-read-output")
-    evals_dir.mkdir(parents=True, exist_ok=True)
-
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    filename = f"{model_name}-{prompt_id}-{timestamp}.md"
-    out_path = evals_dir / filename
-
-    header = f"# Eval: {model_name} / {prompt_id}\n\n"
-    header += f"**PDF:** {pdf_name}  \n"
-    header += f"**Date:** {datetime.now().isoformat()}  \n"
-    header += f"**Model:** {model_name} ({MODELS[model_name]['deployment']})\n\n---\n\n"
-
-    out_path.write_text(header + content)
-    return out_path
-
-
 def eval_command(
     pdf: Annotated[
         Path | None,
@@ -442,14 +422,13 @@ def eval_command(
         pngs = _pdf_to_pngs(pdf)
         console.print(f"  {len(pngs)} page(s) ready.\n")
 
-    # Auto-generate output path if not specified
+    # Auto-generate output path if not specified. Goes under the user data
+    # dir's runs/ subtree — never CWD — so the command is safe to run from
+    # any directory.
     if output is None:
-        evals_dir = Path("cold-read-output")
-        evals_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         pdf_stem = pdf.stem if pdf else "calibration"
         ext = ".json" if output_json else ".md"
-        output = evals_dir / f"{pdf_stem}-{timestamp}{ext}"
+        output = _output.default_output_path(pdf_stem, ext=ext)
 
     # Plan summary
     console.print(f"[bold]Plan:[/bold] {len(prompt_ids)} prompt(s) x {len(model_names)} model(s) = {len(prompt_ids) * len(model_names)} eval(s)")
@@ -523,9 +502,15 @@ def eval_command(
                 console.print(result["content"], highlight=False)
                 console.print("", highlight=False)
 
-            # Save individual file
+            # Save individual file under the runs dir
             pdf_label = pdf.name if pdf else "calibration-resume"
-            out_path = _save_result(model_name, prompt_id, result["content"], pdf_label)
+            out_path = _output.save_individual(
+                model_name=model_name,
+                deployment=deployment,
+                prompt_id=prompt_id,
+                content=result["content"],
+                pdf_name=pdf_label,
+            )
             console.print(f"  Saved: {out_path}\n", highlight=False)
 
     # Write combined output file
