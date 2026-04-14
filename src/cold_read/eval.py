@@ -62,21 +62,25 @@ def _strip_jd_boilerplate(jd_text: str) -> str:
     return "\n".join(result_lines).strip()
 
 
-def _compose_vision_prompt() -> str:
-    """Compose the vision pass prompt (preamble + vision task). No JD, no company."""
-    parts = [
-        "## Screening Context\n\n" + _prompts.load_prompt_file("preamble.md"),
-        "## Your Task\n\n" + _prompts.load_prompt_file("task-jd-vision.md"),
+def _compose_vision_prompt() -> tuple[str, list[tuple[str, str]]]:
+    """Compose the vision pass. Returns (text, [(source, section), ...])."""
+    sections: list[tuple[str, str]] = [
+        ("preamble.md", "## Screening Context\n\n" + _prompts.load_prompt_file("preamble.md")),
+        ("task-jd-vision.md", "## Your Task\n\n" + _prompts.load_prompt_file("task-jd-vision.md")),
     ]
-    return "\n\n".join(parts)
+    return "\n\n".join(s for _, s in sections), sections
 
 
-def _compose_jd_prompt(jd_path: Path, company_slug: str | None) -> tuple[str, str]:
-    """Compose a JD-based eval prompt from parts. Returns (prompt_text, prompt_label)."""
-    parts: list[str] = []
+def _compose_jd_prompt(
+    jd_path: Path, company_slug: str | None
+) -> tuple[str, str, list[tuple[str, str]]]:
+    """Compose a JD-based eval prompt. Returns (text, label, sections)."""
+    sections: list[tuple[str, str]] = []
 
     # Part 1: Preamble
-    parts.append("## Screening Context\n\n" + _prompts.load_prompt_file("preamble.md"))
+    sections.append(
+        ("preamble.md", "## Screening Context\n\n" + _prompts.load_prompt_file("preamble.md"))
+    )
 
     # Part 2: Company dossier (optional). `_config.resolve_company` accepts
     # either a file path or a slug rooted in the user config dir and never
@@ -84,7 +88,9 @@ def _compose_jd_prompt(jd_path: Path, company_slug: str | None) -> tuple[str, st
     if company_slug:
         dossier = _config.resolve_company(company_slug)
         if dossier is not None:
-            parts.append("## Company\n\n" + dossier.read_text())
+            sections.append(
+                (str(dossier), "## Company\n\n" + dossier.read_text())
+            )
         else:
             console.print(
                 f"  [yellow]Warning:[/yellow] No company dossier found for '{company_slug}'. "
@@ -94,10 +100,12 @@ def _compose_jd_prompt(jd_path: Path, company_slug: str | None) -> tuple[str, st
     # Part 3: JD
     jd_text = jd_path.read_text()
     jd_stripped = _strip_jd_boilerplate(jd_text)
-    parts.append("## Job Description\n\n" + jd_stripped)
+    sections.append((str(jd_path), "## Job Description\n\n" + jd_stripped))
 
     # Part 4: Task instructions
-    parts.append("## Your Task\n\n" + _prompts.load_prompt_file("task-jd-eval.md"))
+    sections.append(
+        ("task-jd-eval.md", "## Your Task\n\n" + _prompts.load_prompt_file("task-jd-eval.md"))
+    )
 
     prompt_label = "jd-eval"
     if company_slug:
@@ -107,7 +115,68 @@ def _compose_jd_prompt(jd_path: Path, company_slug: str | None) -> tuple[str, st
         else:
             prompt_label = f"jd-eval-{company_slug}"
 
-    return "\n\n".join(parts), prompt_label
+    text = "\n\n".join(s for _, s in sections)
+    return text, prompt_label, sections
+
+
+def _print_explain(
+    jd_mode: bool,
+    prompt_ids: list[str],
+    jd_pass_sections: dict[str, list[tuple[str, str]]] | None,
+) -> None:
+    """Print the composed prompt with source markers; do not call the API.
+
+    JD mode prints both passes; manifest mode prints each phase's prompt
+    file. For phases whose manifest entry declares `fixed_images`,
+    emits a bracketed image-list so the output fully describes what the
+    model would receive.
+    """
+    import sys
+
+    if jd_mode:
+        assert jd_pass_sections is not None
+        for pass_id in prompt_ids:
+            _print_section_banner(f"pass: {pass_id}")
+            for source, body in jd_pass_sections[pass_id]:
+                # markup=False so Rich doesn't treat [from: X] as a style tag
+                # and silently drop it from the output.
+                console.print(f"[from: {source}]", markup=False, highlight=False)
+                console.print(body, markup=False, highlight=False)
+                console.print("")
+    else:
+        for phase_id in prompt_ids:
+            manifest = _prompts.load_manifest()
+            phase = next(
+                (p for p in manifest["phases"] if p.get("id") == phase_id), None
+            )
+            if phase is None:
+                continue
+            prompt_file = phase["prompt_file"]
+            _print_section_banner(f"phase: {phase_id} ({prompt_file})")
+            console.print(f"[from: {prompt_file}]", markup=False, highlight=False)
+            console.print(
+                _prompts.load_prompt_file(prompt_file), markup=False, highlight=False
+            )
+            fixed = phase.get("fixed_images")
+            if fixed:
+                console.print(
+                    f"[fixed images: {', '.join(fixed)}]",
+                    markup=False,
+                    highlight=False,
+                )
+            console.print("")
+
+    # Stderr, so --explain output can be safely redirected to a file
+    # without dropping this caveat.
+    print(
+        "Explain output contains your company profile and JD verbatim — "
+        "review before sharing.",
+        file=sys.stderr,
+    )
+
+
+def _print_section_banner(label: str) -> None:
+    console.rule(f"[bold]=== {label} ===[/bold]")
 
 
 def _pdf_to_pngs(pdf_path: Path) -> list[Path]:
@@ -178,6 +247,13 @@ def eval_command(
         Path | None,
         typer.Option("--output", "-o", help="Write combined results to this file (markdown or JSON)."),
     ] = None,
+    explain: Annotated[
+        bool,
+        typer.Option(
+            "--explain",
+            help="Compose the full prompt and print it with source-file markers; do not call any API.",
+        ),
+    ] = False,
 ) -> None:
     """Run LLM evals against a resume PDF."""
     if list_models:
@@ -217,11 +293,15 @@ def eval_command(
 
     if jd_mode:
         # Two-pass JD eval: vision first, then content
-        vision_prompt = _compose_vision_prompt()
-        content_prompt, content_label = _compose_jd_prompt(jd, company)
+        vision_prompt, vision_sections = _compose_vision_prompt()
+        content_prompt, content_label, content_sections = _compose_jd_prompt(jd, company)
         jd_pass_prompts = {
             "jd-vision": vision_prompt,
             content_label: content_prompt,
+        }
+        jd_pass_sections = {
+            "jd-vision": vision_sections,
+            content_label: content_sections,
         }
         prompt_ids = list(jd_pass_prompts.keys())
     else:
@@ -236,6 +316,14 @@ def eval_command(
     all_fixed = not jd_mode and all(
         _prompts.get_fixed_images(pid) is not None for pid in prompt_ids
     )
+
+    if explain:
+        _print_explain(
+            jd_mode=jd_mode,
+            prompt_ids=prompt_ids,
+            jd_pass_sections=jd_pass_sections if jd_mode else None,
+        )
+        raise typer.Exit()
 
     if pdf is None and not all_fixed:
         raise InvocationError("PDF argument is required for non-calibration prompts.")

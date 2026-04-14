@@ -29,7 +29,15 @@ uvx resume-cold-read eval --help
 
 ## Configure
 
-Credentials live in environment variables, grouped by provider shape. Export them in your shell, or put them in a `.env` file at `~/.config/resume-cold-read/.env` (recommended) or in the directory you run from. The config-dir `.env` wins over a CWD `.env`, and anything already in your process environment wins over both.
+The fastest path is the interactive wizard:
+
+```bash
+resume-cold-read init
+```
+
+It walks through each provider, tests the credentials with a live call, and writes `.env` + `config.toml` into your platform's config dir (`~/.config/resume-cold-read/` on Linux, `~/Library/Application Support/resume-cold-read/` on macOS, `%APPDATA%\resume-cold-read\` on Windows). Run `resume-cold-read doctor` afterward to verify install, config, provider health, and per-model status.
+
+If you prefer to configure by hand, credentials live in environment variables grouped by provider shape. Export them in your shell, drop them in the config dir's `.env`, or put a `.env` in the directory you run from. The config-dir `.env` wins over a CWD `.env`, and anything already in your process environment wins over both.
 
 ```bash
 # Azure OpenAI — GPT-class vision models (calibrated default)
@@ -41,9 +49,19 @@ AZURE_MAAS_API_KEY=...
 AZURE_MAAS_ENDPOINT=...
 ```
 
-On macOS `~/.config/` becomes `~/Library/Application Support/`, and on Windows it becomes `%APPDATA%` — `platformdirs` picks the right one automatically.
+Deployment names for each alias live in `config.toml` (written by `init`, or edit by hand):
 
-Run `resume-cold-read eval --list-models` to see all supported models and the env vars each one requires.
+```toml
+default_model = "gpt52"
+
+[providers."azure-openai"]
+deployment_map = { "gpt52" = "gpt-52-chat" }
+
+[providers."azure-maas"]
+deployment_map = { "grok4" = "grok-4-fast-reasoning" }
+```
+
+Run `resume-cold-read eval --list-models` to see all supported models and which ones are currently resolvable.
 
 ## Calibrate once per model
 
@@ -85,9 +103,12 @@ See [examples/companies/meridian-ai.md](examples/companies/meridian-ai.md) for a
 resume-cold-read eval --list-models          # Available models and their env vars
 resume-cold-read eval --model grok4          # Pick a specific model
 resume-cold-read eval -o result.md           # Custom output path
+resume-cold-read eval --jd role.md --explain # Print the composed prompt, exit without calling the API
 ```
 
 Claude models (`claude-sonnet`, `claude-opus`) run through the [Claude CLI](https://claude.ai/code) rather than an API key. Install the CLI if you want to use them.
+
+`--explain` is useful for inspecting or sharing the exact prompt that would be sent — every composed section is annotated with its source file so you can see what is coming from the packaged prompts, your company profile, and the JD.
 
 Results from one calibration run (18 questions across three difficulty tiers, total possible 14):
 

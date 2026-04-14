@@ -54,6 +54,8 @@ JD-based evals compose a prompt at runtime from:
 
 Two passes run automatically: vision (`preamble.md` + `task-jd-vision.md`, no JD) then content (full composition above). Each pass is an independent API call.
 
+`resume-cold-read eval ... --explain` prints the full composed prompt for both passes with per-section `[from: <source>]` markers and exits without calling any API — useful for inspecting or sharing the exact prompt the model would see.
+
 The `phase1-*` / `phase2-*` prompts predate the composable system. They are self-contained sample prompts using the Meridian AI demo universe — reference implementations for what a full company-specific prompt looks like, not general-purpose content. Real use goes through `--jd`.
 
 ## Calibration artifact
