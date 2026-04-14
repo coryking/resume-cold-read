@@ -14,6 +14,8 @@ from openai import AzureOpenAI, OpenAI
 from rich.console import Console
 from rich.table import Table
 
+from cold_read import prompts as _prompts
+
 load_dotenv()
 
 console = Console()
@@ -45,75 +47,12 @@ MODELS: dict[str, dict] = {
 }
 
 
-def _get_project_root() -> Path:
-    """Find cold-read project root by walking up to pyproject.toml, or COLD_READ_HOME."""
-    env_home = os.environ.get("COLD_READ_HOME")
-    if env_home:
-        root = Path(env_home)
-        if root.is_dir():
-            return root
-
-    current = Path(__file__).resolve().parent
-    for _ in range(10):
-        if (current / "pyproject.toml").exists() and (current / "prompts").is_dir():
-            return current
-        current = current.parent
-
-    raise RuntimeError(
-        "Cannot find cold-read project root (looked for pyproject.toml + prompts/ directory). "
-        "Set COLD_READ_HOME or run from the project directory."
-    )
-
-
-def _load_manifest() -> dict:
-    """Load the prompts manifest."""
-    root = _get_project_root()
-    return json.loads((root / "prompts" / "manifest.json").read_text())
-
-
 def _load_prompt(prompt_id: str) -> str:
-    """Load a prompt file by phase ID from the manifest."""
-    root = _get_project_root()
-    manifest = _load_manifest()
-
-    phase = next((p for p in manifest["phases"] if p["id"] == prompt_id), None)
-    if phase is None:
-        available = [p["id"] for p in manifest["phases"]]
-        raise typer.BadParameter(
-            f"Unknown prompt '{prompt_id}'. Available: {', '.join(available)}"
-        )
-
-    return (root / "prompts" / phase["prompt_file"]).read_text()
-
-
-def _get_fixed_images(prompt_id: str) -> list[Path] | None:
-    """Return fixed image paths for a phase, or None if it uses PDF rendering."""
-    root = _get_project_root()
-    manifest = _load_manifest()
-
-    phase = next((p for p in manifest["phases"] if p["id"] == prompt_id), None)
-    if phase is None or "fixed_images" not in phase:
-        return None
-
-    paths = []
-    for img_rel in phase["fixed_images"]:
-        img_path = root / img_rel
-        if not img_path.exists():
-            raise typer.BadParameter(f"Fixed calibration image not found: {img_path}")
-        paths.append(img_path)
-    return paths
-
-
-def _get_all_prompt_ids() -> list[str]:
-    """Return non-calibration prompt IDs from manifest. Calibration must be run explicitly."""
-    manifest = _load_manifest()
-    return [p["id"] for p in manifest["phases"] if p["id"] != "calibration"]
-
-
-def _load_prompt_file(filename: str) -> str:
-    """Load a prompt file by name from the prompts directory."""
-    root = _get_project_root()
-    return (root / "prompts" / filename).read_text()
+    """Load a prompt file by phase ID, re-raising as typer.BadParameter for CLI UX."""
+    try:
+        return _prompts.load_prompt(prompt_id)
+    except _prompts.UnknownPromptError as exc:
+        raise typer.BadParameter(str(exc)) from exc
 
 
 def _strip_jd_boilerplate(jd_text: str) -> str:
@@ -145,35 +84,30 @@ def _strip_jd_boilerplate(jd_text: str) -> str:
 def _compose_vision_prompt() -> str:
     """Compose the vision pass prompt (preamble + vision task). No JD, no company."""
     parts = [
-        "## Screening Context\n\n" + _load_prompt_file("preamble.md"),
-        "## Your Task\n\n" + _load_prompt_file("task-jd-vision.md"),
+        "## Screening Context\n\n" + _prompts.load_prompt_file("preamble.md"),
+        "## Your Task\n\n" + _prompts.load_prompt_file("task-jd-vision.md"),
     ]
     return "\n\n".join(parts)
 
 
 def _compose_jd_prompt(jd_path: Path, company_slug: str | None) -> tuple[str, str]:
     """Compose a JD-based eval prompt from parts. Returns (prompt_text, prompt_label)."""
-    root = _get_project_root()
     parts: list[str] = []
 
     # Part 1: Preamble
-    parts.append("## Screening Context\n\n" + _load_prompt_file("preamble.md"))
+    parts.append("## Screening Context\n\n" + _prompts.load_prompt_file("preamble.md"))
 
-    # Part 2: Company dossier (optional)
+    # Part 2: Company dossier (optional). Bucket-2 resolution (slug → user config
+    # dir) is added in a later unit; for now only explicit file paths are honored.
     if company_slug:
-        # Accept a file path or a slug
         company_path = Path(company_slug)
         if company_path.is_file():
             parts.append("## Company\n\n" + company_path.read_text())
         else:
-            dossier_file = root / "prompts" / f"company-{company_slug}.md"
-            if dossier_file.exists():
-                parts.append("## Company\n\n" + dossier_file.read_text())
-            else:
-                console.print(
-                    f"  [yellow]Warning:[/yellow] No company dossier found for '{company_slug}' "
-                    f"(looked for {dossier_file} and file path). Skipping company context."
-                )
+            console.print(
+                f"  [yellow]Warning:[/yellow] No company dossier found for '{company_slug}'. "
+                f"Pass a file path; slug resolution lands in a later unit."
+            )
 
     # Part 3: JD
     jd_text = jd_path.read_text()
@@ -181,11 +115,10 @@ def _compose_jd_prompt(jd_path: Path, company_slug: str | None) -> tuple[str, st
     parts.append("## Job Description\n\n" + jd_stripped)
 
     # Part 4: Task instructions
-    parts.append("## Your Task\n\n" + _load_prompt_file("task-jd-eval.md"))
+    parts.append("## Your Task\n\n" + _prompts.load_prompt_file("task-jd-eval.md"))
 
     prompt_label = "jd-eval"
     if company_slug:
-        # Use filename stem for file paths, slug otherwise
         company_path = Path(company_slug)
         if company_path.is_file():
             prompt_label = f"jd-eval-{company_path.stem}"
@@ -479,13 +412,15 @@ def eval_command(
     else:
         # Legacy phase-based eval
         if prompt == "all":
-            prompt_ids = _get_all_prompt_ids()
+            prompt_ids = _prompts.get_all_prompt_ids()
         else:
             prompt_ids = [prompt]
 
     # Check if all phases use fixed images (PDF not needed)
     # In JD mode, we always need the PDF
-    all_fixed = not jd_mode and all(_get_fixed_images(pid) is not None for pid in prompt_ids)
+    all_fixed = not jd_mode and all(
+        _prompts.get_fixed_images(pid) is not None for pid in prompt_ids
+    )
 
     if pdf is None and not all_fixed:
         console.print("[red]Error:[/red] PDF argument is required for non-calibration prompts.")
@@ -541,7 +476,7 @@ def eval_command(
         else:
             prompt_text = _load_prompt(prompt_id)
             # Use fixed images if available, otherwise PDF-rendered PNGs
-            phase_pngs = _get_fixed_images(prompt_id) or pngs
+            phase_pngs = _prompts.get_fixed_images(prompt_id) or pngs
 
         for model_name in model_names:
             eval_num += 1
