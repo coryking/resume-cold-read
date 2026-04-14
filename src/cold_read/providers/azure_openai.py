@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import httpx
 from openai import AzureOpenAI
 
 from cold_read.providers._encoding import build_chat_messages
@@ -24,18 +25,26 @@ CREDENTIAL_FIELDS = (
     ),
 )
 
+# Tight timeout for `credential_test()` and other quick health checks.
+# Real eval calls go through `run()` and use the SDK default — a slow
+# model thinking shouldn't be confused with a credential probe hanging.
+_CREDENTIAL_TEST_TIMEOUT = httpx.Timeout(5.0, read=15.0)
 
-def _build_client(api_version: str) -> AzureOpenAI:
+
+def _build_client(api_version: str, *, timeout: httpx.Timeout | None = None) -> AzureOpenAI:
     missing = SHAPE.missing_env()
     if missing:
         raise CredentialsMissingError(
             f"Missing env vars for azure-openai: {', '.join(missing)}"
         )
-    return AzureOpenAI(
-        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-        api_key=os.environ["AZURE_OPENAI_API_KEY"],
-        api_version=api_version,
-    )
+    kwargs: dict = {
+        "azure_endpoint": os.environ["AZURE_OPENAI_ENDPOINT"],
+        "api_key": os.environ["AZURE_OPENAI_API_KEY"],
+        "api_version": api_version,
+    }
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    return AzureOpenAI(**kwargs)
 
 
 def run(prompt_text: str, images: list[Path], extras: dict) -> EvalResult:
@@ -72,10 +81,14 @@ def run(prompt_text: str, images: list[Path], extras: dict) -> EvalResult:
 
 
 def credential_test(extras: dict) -> CredentialTestResult:
-    """Cheap `models.list()` round-trip; any 2xx means creds resolved."""
+    """Cheap `models.list()` round-trip; any 2xx means creds resolved.
+
+    Uses a tight timeout so a misconfigured endpoint surfaces in
+    seconds, not the SDK's 10-minute default.
+    """
     api_version = extras.get("api_version", "2024-12-01-preview")
     try:
-        client = _build_client(api_version)
+        client = _build_client(api_version, timeout=_CREDENTIAL_TEST_TIMEOUT)
         client.models.list()
     except CredentialsMissingError as exc:
         return CredentialTestResult(ok=False, reason=str(exc))

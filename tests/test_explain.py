@@ -134,3 +134,24 @@ def test_explain_never_triggers_pdf_or_model_validation(
     assert result.exit_code == 0, result.output
     assert "[config]" not in result.output
     assert "[invocation]" not in result.output
+
+
+def test_explain_jd_mode_works_without_pdf_argument(
+    fake_dirs, monkeypatch, tmp_path
+):
+    """`eval --jd role.md --explain` (no PDF) is the headline dry-run path.
+
+    A prior version raised `[invocation] PDF argument is required with --jd.`
+    before the explain early-return — this test locks the ordering so the
+    documented use case keeps working.
+    """
+    _no_shape_run(monkeypatch)
+
+    jd = tmp_path / "jd.md"
+    jd.write_text("## Summary\nRole text.\n")
+
+    result = runner.invoke(app, ["eval", "--jd", str(jd), "--explain"])
+
+    assert result.exit_code == 0, result.output
+    assert "[invocation]" not in result.output
+    assert "pass: jd-vision" in result.output

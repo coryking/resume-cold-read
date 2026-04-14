@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from cold_read.errors import InvocationError
 from cold_read.providers import SHAPES, is_reserved
 
 
@@ -28,14 +29,16 @@ def test_concrete_shapes_are_not_reserved(name):
 
 
 def test_reserved_openai_run_raises_with_documented_message():
-    with pytest.raises(NotImplementedError) as exc_info:
+    # Bucket-labeled InvocationError so the CLI formatter prints
+    # `[invocation] ...` instead of dumping a raw traceback.
+    with pytest.raises(InvocationError) as exc_info:
         SHAPES["openai"].run("x", [], {})
     assert "openai shape is reserved" in str(exc_info.value)
     assert "azure-openai" in str(exc_info.value)
 
 
 def test_reserved_anthropic_run_raises_with_documented_message():
-    with pytest.raises(NotImplementedError) as exc_info:
+    with pytest.raises(InvocationError) as exc_info:
         SHAPES["anthropic"].run("x", [], {})
     assert "anthropic shape is reserved" in str(exc_info.value)
     assert "claude-cli" in str(exc_info.value)

@@ -22,6 +22,7 @@ eventually pass calibration.
 
 from __future__ import annotations
 
+from cold_read.errors import InvocationError
 from cold_read.providers.shape import (
     CredentialsMissingError,
     CredentialTestFn,
@@ -35,7 +36,11 @@ from cold_read.providers.shape import (
 
 def _reserved_run(name: str, advice: str) -> RunFn:
     def _run(prompt_text: str, images: list, extras: dict) -> EvalResult:
-        raise NotImplementedError(f"{name} shape is reserved; {advice}")
+        # InvocationError so the bucket-labeled CLI formatter prints
+        # `[invocation] ...` instead of dumping a raw NotImplementedError
+        # traceback if a reserved shape is ever reached via a hand-edited
+        # config.
+        raise InvocationError(f"{name} shape is reserved; {advice}")
 
     return _run
 

@@ -1,5 +1,7 @@
+import atexit
 import json
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -130,13 +132,22 @@ def _print_explain(
     file. For phases whose manifest entry declares `fixed_images`,
     emits a bracketed image-list so the output fully describes what the
     model would receive.
+
+    Section banners and the trailing privacy caveat go to stderr so the
+    composed prompt on stdout can be piped or redirected without banner
+    pollution.
     """
     import sys
 
+    err = Console(stderr=True)
+
     if jd_mode:
-        assert jd_pass_sections is not None
+        if jd_pass_sections is None:
+            raise InvocationError(
+                "internal: --explain in JD mode reached without composed sections"
+            )
         for pass_id in prompt_ids:
-            _print_section_banner(f"pass: {pass_id}")
+            _print_section_banner(err, f"pass: {pass_id}")
             for source, body in jd_pass_sections[pass_id]:
                 # markup=False so Rich doesn't treat [from: X] as a style tag
                 # and silently drop it from the output.
@@ -144,15 +155,15 @@ def _print_explain(
                 console.print(body, markup=False, highlight=False)
                 console.print("")
     else:
+        manifest = _prompts.load_manifest()
         for phase_id in prompt_ids:
-            manifest = _prompts.load_manifest()
             phase = next(
                 (p for p in manifest["phases"] if p.get("id") == phase_id), None
             )
             if phase is None:
                 continue
             prompt_file = phase["prompt_file"]
-            _print_section_banner(f"phase: {phase_id} ({prompt_file})")
+            _print_section_banner(err, f"phase: {phase_id} ({prompt_file})")
             console.print(f"[from: {prompt_file}]", markup=False, highlight=False)
             console.print(
                 _prompts.load_prompt_file(prompt_file), markup=False, highlight=False
@@ -166,8 +177,6 @@ def _print_explain(
                 )
             console.print("")
 
-    # Stderr, so --explain output can be safely redirected to a file
-    # without dropping this caveat.
     print(
         "Explain output contains your company profile and JD verbatim — "
         "review before sharing.",
@@ -175,20 +184,62 @@ def _print_explain(
     )
 
 
-def _print_section_banner(label: str) -> None:
-    console.rule(f"[bold]=== {label} ===[/bold]")
+def _print_section_banner(target: Console, label: str) -> None:
+    target.rule(f"[bold]=== {label} ===[/bold]")
+
+
+def _list_model_rows(user_config: "_config.Config") -> list[dict]:
+    """Return per-alias rows for `--list-models` (table + --json share this)."""
+    from cold_read.providers import SHAPES as _SHAPES
+
+    rows: list[dict] = []
+    for alias in _registry.list_aliases():
+        entry = _registry.MODELS[alias]
+        try:
+            resolved = _registry.resolve(alias, user_config)
+            shape = resolved.shape
+            deployment = resolved.deployment
+            configured = True
+        except _registry.UnresolvedDeploymentError:
+            shape = _SHAPES[entry.shape]
+            deployment = None
+            configured = False
+        rows.append({
+            "alias": alias,
+            "shape": shape.name,
+            "deployment": deployment,
+            "env_vars": [f.name for f in shape.credential_fields],
+            "configured": configured,
+            "default": alias == user_config.default_model,
+        })
+    return rows
+
+
+_PDFTOPPM_TIMEOUT_SECONDS = 120
 
 
 def _pdf_to_pngs(pdf_path: Path) -> list[Path]:
-    """Convert PDF to PNG pages using pdftoppm. Returns list of PNG paths."""
+    """Convert PDF to PNG pages using pdftoppm. Returns list of PNG paths.
+
+    The temp dir is registered with `atexit` for cleanup so a stuck
+    process or early raise doesn't leak hundreds of MB of rendered PNGs
+    under `/tmp`.
+    """
     tmp_dir = tempfile.mkdtemp(prefix="cold-read-")
+    atexit.register(shutil.rmtree, tmp_dir, ignore_errors=True)
     prefix = Path(tmp_dir) / "page"
 
-    result = subprocess.run(
-        ["pdftoppm", "-png", "-r", "150", str(pdf_path), str(prefix)],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["pdftoppm", "-png", "-r", "150", str(pdf_path), str(prefix)],
+            capture_output=True,
+            text=True,
+            timeout=_PDFTOPPM_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise InvocationError(
+            f"pdftoppm timed out after {_PDFTOPPM_TIMEOUT_SECONDS}s on {pdf_path.name}."
+        ) from exc
     if result.returncode != 0:
         raise InvocationError(f"pdftoppm failed: {result.stderr.strip()}")
 
@@ -258,34 +309,34 @@ def eval_command(
     """Run LLM evals against a resume PDF."""
     if list_models:
         user_config = _config.read_config()
-        table = Table(title="Available Models")
-        table.add_column("Name", style="bold")
-        table.add_column("Shape")
-        table.add_column("Deployment")
-        table.add_column("Env Vars")
-
-        for alias in _registry.list_aliases():
-            entry = _registry.MODELS[alias]
-            try:
-                resolved = _registry.resolve(alias, user_config)
-                deployment = resolved.deployment or "—"
-                shape = resolved.shape
-            except _registry.UnresolvedDeploymentError:
-                from cold_read.providers import SHAPES as _SHAPES
-                shape = _SHAPES[entry.shape]
-                deployment = "[yellow]not configured[/yellow]"
-            env_vars = ", ".join(f.name for f in shape.credential_fields) or "—"
-            table.add_row(alias, shape.name, deployment, env_vars)
-
-        console.print(table)
+        rows = _list_model_rows(user_config)
+        if output_json:
+            print(json.dumps(rows, indent=2))
+        else:
+            table = Table(title="Available Models")
+            table.add_column("Name", style="bold")
+            table.add_column("Shape")
+            table.add_column("Deployment")
+            table.add_column("Env Vars")
+            for row in rows:
+                deployment = (
+                    "[yellow]not configured[/yellow]"
+                    if not row["configured"]
+                    else (row["deployment"] or "—")
+                )
+                env_vars = ", ".join(row["env_vars"]) or "—"
+                table.add_row(row["alias"], row["shape"], deployment, env_vars)
+            console.print(table)
         raise typer.Exit()
 
-    # Validate --jd flag
+    # Validate --jd flag. PDF-required check is gated on `not explain` so
+    # `eval --jd role.md --explain` (the documented dry-run) works without a
+    # resume on hand.
     jd_mode = jd is not None
     if jd_mode:
         if not jd.exists():
             raise InvocationError(f"JD file not found: {jd}")
-        if pdf is None:
+        if pdf is None and not explain:
             raise InvocationError("PDF argument is required with --jd.")
 
     if company and not jd_mode:
@@ -398,8 +449,11 @@ def eval_command(
             phase_pngs = pngs
         else:
             prompt_text = _load_prompt(prompt_id)
-            # Use fixed images if available, otherwise PDF-rendered PNGs
-            phase_pngs = _prompts.get_fixed_images(prompt_id) or pngs
+            # Use fixed images if available, otherwise PDF-rendered PNGs.
+            # `get_fixed_images` returns a tuple (cached); list() so the
+            # downstream shape signatures stay the way they were.
+            fixed = _prompts.get_fixed_images(prompt_id)
+            phase_pngs = list(fixed) if fixed else pngs
 
         for model_name in model_names:
             eval_num += 1
@@ -471,6 +525,13 @@ def eval_command(
             output.write_text("\n\n---\n\n".join(parts))
 
         console.print(f"Combined results written to {output}", highlight=False)
+    elif total_evals > 0:
+        # Every eval failed and was skipped via the broad except above.
+        # Don't let total failure look like success to scripts.
+        console.print(
+            f"[red]All {total_evals} eval(s) failed.[/red]", highlight=False
+        )
+        raise typer.Exit(1)
 
     # Token summary (compact)
     if all_results and not output_json:

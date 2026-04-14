@@ -37,6 +37,11 @@ _SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 _KNOWN_PROVIDERS = ("azure-openai", "azure-maas", "claude-cli", "openai", "anthropic")
 
 
+class InvalidConfigValueError(ValueError):
+    """A user-supplied config value contains a character that would
+    corrupt the on-disk file (currently: embedded newlines)."""
+
+
 @dataclass
 class ProviderConfig:
     """Per-provider config block. Currently just a deployment map, but shaped
@@ -55,13 +60,18 @@ class Config:
 
 
 def config_dir() -> Path:
-    """Return the user config directory, creating it with 0o700 if absent."""
+    """Return the user config directory, creating it with 0o700 if absent.
+
+    The chmod runs only on first creation. Doing it on every invocation
+    would silently mutate the user's home-dir state from read-only paths
+    like `doctor`, and would also race with concurrent runs.
+    """
     path = Path(platformdirs.user_config_dir(APP_NAME))
     if not path.exists():
         path.mkdir(mode=0o700, parents=True, exist_ok=True)
-    # mkdir's `mode` is masked by umask; the explicit chmod is the
-    # authoritative step that guarantees 0o700 regardless of umask.
-    os.chmod(path, 0o700)
+        # mkdir's `mode` is masked by umask; the explicit chmod is the
+        # authoritative step that guarantees 0o700 regardless of umask.
+        os.chmod(path, 0o700)
     return path
 
 
@@ -136,7 +146,33 @@ def read_config() -> Config:
 
 def write_config(cfg: Config) -> Path:
     """Atomically write a Config to `config.toml` (mode 0o600)."""
+    _reject_newlines_in_config(cfg)
     return atomic_write(config_file(), _serialize_config(cfg), mode=0o600)
+
+
+def _reject_newlines_in_config(cfg: Config) -> None:
+    """Guard the hand-rolled TOML writer against newline-in-value injection.
+
+    `_escape` only escapes `\\` and `"`; an embedded `\\n` would land
+    verbatim in the file and either inject extra TOML lines or make the
+    file fail `tomllib.loads()` on next read (bypassing the bucket-labeled
+    error formatter).
+    """
+    for value in (cfg.default_model,):
+        if value is not None and ("\n" in value or "\r" in value):
+            raise InvalidConfigValueError(
+                "default_model contains a newline; refusing to write config.toml"
+            )
+    for shape_name, provider in cfg.providers.items():
+        for alias, deployment in provider.deployment_map.items():
+            if "\n" in alias or "\r" in alias:
+                raise InvalidConfigValueError(
+                    f"alias name {alias!r} in {shape_name} deployment_map contains a newline"
+                )
+            if "\n" in deployment or "\r" in deployment:
+                raise InvalidConfigValueError(
+                    f"deployment name for {alias!r} on {shape_name} contains a newline"
+                )
 
 
 def write_env_file(env_values: dict[str, str]) -> Path:
@@ -145,8 +181,18 @@ def write_env_file(env_values: dict[str, str]) -> Path:
     Keys are sorted for deterministic output. Every value is written as a
     bare `KEY=value` line — no shell-quoting, since `python-dotenv` does
     not require it on read.
+
+    Values containing `\\n` or `\\r` are rejected: they would inject extra
+    KEY=value lines on the next reload. Wizard prompts validate this on
+    input; this guard exists so any future caller (programmatic config
+    edits, scripted setup) can't silently corrupt the file.
     """
     path = env_file()
+    for k, v in env_values.items():
+        if "\n" in v or "\r" in v:
+            raise InvalidConfigValueError(
+                f"value for {k} contains a newline; .env entries must be single-line"
+            )
     lines = [f"{k}={v}" for k, v in sorted(env_values.items())]
     content = "\n".join(lines) + ("\n" if lines else "")
     return atomic_write(path, content, mode=0o600)
@@ -186,11 +232,16 @@ def atomic_write(path: Path, content: str, mode: int = 0o600) -> Path:
 
     Guarantees that a crash or Ctrl-C mid-write leaves the pre-existing
     file intact and that the final file lands at `mode` regardless of
-    umask.
+    umask. If the parent dir has to be created here (rather than via
+    `config_dir()`), it lands at 0o700 so a stray write path can't
+    leave the credential dir world-readable.
     """
-    path.parent.mkdir(parents=True, exist_ok=True)
+    parent = path.parent
+    if not parent.exists():
+        parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(parent, 0o700)
     fd, tmp = tempfile.mkstemp(
-        dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
+        dir=str(parent), prefix=f".{path.name}.", suffix=".tmp"
     )
     try:
         with os.fdopen(fd, "w") as f:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import httpx
 from openai import OpenAI
 
 from cold_read.providers._encoding import build_chat_messages
@@ -24,15 +25,23 @@ CREDENTIAL_FIELDS = (
     ),
 )
 
+_CREDENTIAL_TEST_TIMEOUT = httpx.Timeout(5.0, read=15.0)
 
-def _build_client() -> OpenAI:
+
+def _build_client(*, timeout: httpx.Timeout | None = None) -> OpenAI:
     missing = SHAPE.missing_env()
     if missing:
         raise CredentialsMissingError(
             f"Missing env vars for azure-maas: {', '.join(missing)}"
         )
     base_url = os.environ["AZURE_MAAS_ENDPOINT"].rstrip("/") + "/openai/v1/"
-    return OpenAI(base_url=base_url, api_key=os.environ["AZURE_MAAS_API_KEY"])
+    kwargs: dict = {
+        "base_url": base_url,
+        "api_key": os.environ["AZURE_MAAS_API_KEY"],
+    }
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    return OpenAI(**kwargs)
 
 
 def run(prompt_text: str, images: list[Path], extras: dict) -> EvalResult:
@@ -73,7 +82,7 @@ def credential_test(extras: dict) -> CredentialTestResult:
             ok=False, reason="No deployment configured; run init or edit config.toml"
         )
     try:
-        client = _build_client()
+        client = _build_client(timeout=_CREDENTIAL_TEST_TIMEOUT)
         client.chat.completions.create(
             model=deployment,
             messages=[{"role": "user", "content": "ok"}],

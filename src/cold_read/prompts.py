@@ -53,12 +53,17 @@ def load_prompt(phase_id: str) -> str:
     return load_prompt_file(phase["prompt_file"])
 
 
-def get_fixed_images(phase_id: str) -> list[Path] | None:
+@lru_cache(maxsize=None)
+def get_fixed_images(phase_id: str) -> tuple[Path, ...] | None:
     """Return filesystem Paths for a phase's fixed images, or None.
 
     Paths are guaranteed valid for the lifetime of the process. Does not
     itself read the PNG bytes — callers are expected to open, encode, or
     copy before the process exits.
+
+    Cached per phase id so repeat calls within one process don't stack
+    new `as_file` contexts (which, in zipfile installs, materialize a
+    fresh temp copy each time).
     """
     manifest = load_manifest()
     phase = _find_phase(manifest, phase_id)
@@ -69,7 +74,7 @@ def get_fixed_images(phase_id: str) -> list[Path] | None:
     for img_rel in phase["fixed_images"]:
         traversable = _RESOURCES.joinpath(*img_rel.split("/"))
         paths.append(_exit_stack.enter_context(as_file(traversable)))
-    return paths
+    return tuple(paths)
 
 
 def get_all_prompt_ids() -> list[str]:

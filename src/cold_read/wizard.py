@@ -193,7 +193,12 @@ def _configure_shape(
     user_config: _config.Config,
 ) -> Optional[tuple[dict[str, str], Optional[_config.ProviderConfig]]]:
     """Dispatch to the shape-specific configuration flow. Returns
-    (env_updates, provider_config) if credentials verified, else None."""
+    (env_updates, provider_config) if credentials verified, else None.
+
+    Adding a new concrete shape requires a branch here. The final
+    `raise` (instead of a silent `return None`) makes that requirement
+    loud — `init` should never accept a shape it has no flow for.
+    """
     shape = SHAPES[shape_name]
 
     if shape_name == "azure-openai":
@@ -202,16 +207,22 @@ def _configure_shape(
         return _configure_azure_maas(shape, env_values)
     if shape_name == "claude-cli":
         return _configure_claude_cli(shape)
-    # Reserved shapes should have been filtered earlier.
-    return None
+    if is_reserved(shape_name):
+        # Reserved shapes should have been filtered earlier.
+        return None
+    raise RuntimeError(
+        f"No wizard flow for concrete shape {shape_name!r}. "
+        f"Add a branch in wizard._configure_shape."
+    )
 
 
 def _configure_azure_openai(
     shape: ProviderShape, env_values: dict[str, str]
 ) -> Optional[tuple[dict[str, str], _config.ProviderConfig]]:
     """Prompt for Azure-OpenAI creds, list deployments, test, return config."""
+    current_env = dict(env_values)
     while True:
-        env_updates = _prompt_credentials(shape, env_values)
+        env_updates = _prompt_credentials(shape, current_env)
         _apply_env(env_updates)
 
         # Attempt deployments listing (graceful fallback on any failure).
@@ -227,10 +238,10 @@ def _configure_azure_openai(
             api_version = entry.extras.get("api_version", LISTING_API_VERSION)
             deployment = _pick_deployment_for_alias(alias, deployments)
             if deployment is None:
-                deployment = Prompt.ask(
+                deployment = _prompt_nonempty(
                     f"Deployment name for `{alias}` "
                     f"(api-version {api_version})"
-                ).strip()
+                )
             deployment_map[alias] = deployment
 
         # Credential test uses the first alias's api_version (they're all
@@ -248,21 +259,26 @@ def _configure_azure_openai(
         )
         if not Confirm.ask("Re-enter credentials?", default=True):
             return None
+        # On retry, the just-rejected values seed the next prompt, so the
+        # user only has to fix the field that was wrong rather than re-type
+        # everything.
+        current_env = {**current_env, **env_updates}
 
 
 def _configure_azure_maas(
     shape: ProviderShape, env_values: dict[str, str]
 ) -> Optional[tuple[dict[str, str], _config.ProviderConfig]]:
     """Prompt for MaaS creds + per-alias deployment, test, return config."""
+    current_env = dict(env_values)
     while True:
-        env_updates = _prompt_credentials(shape, env_values)
+        env_updates = _prompt_credentials(shape, current_env)
         _apply_env(env_updates)
 
         deployment_map: dict[str, str] = {}
         for alias in _registry.aliases_for_shape("azure-maas"):
-            deployment_map[alias] = Prompt.ask(
+            deployment_map[alias] = _prompt_nonempty(
                 f"Deployment name for `{alias}` on this MaaS endpoint"
-            ).strip()
+            )
 
         test_alias = next(iter(deployment_map))
         test_result = shape.credential_test(
@@ -274,6 +290,7 @@ def _configure_azure_maas(
         console.print(f"[red]Credential test failed:[/red] {test_result.reason}")
         if not Confirm.ask("Re-enter credentials?", default=True):
             return None
+        current_env = {**current_env, **env_updates}
 
 
 def _configure_claude_cli(
@@ -320,6 +337,9 @@ def _prompt_endpoint(field: EnvField, existing: str) -> str:
         if value is None:
             continue
         value = value.strip()
+        if _has_newline(value):
+            console.print("[red]Value cannot contain a newline.[/red]")
+            continue
         if not value.startswith("https://"):
             console.print(
                 "[red]Endpoint must start with https://[/red] — got "
@@ -340,8 +360,33 @@ def _prompt_secret_or_value(field: EnvField, existing: str) -> str:
         if value is None:
             continue
         value = value.strip()
-        if value:
-            return value
+        if not value:
+            continue
+        if _has_newline(value):
+            console.print("[red]Value cannot contain a newline.[/red]")
+            continue
+        return value
+
+
+def _prompt_nonempty(prompt: str) -> str:
+    """Prompt for a non-empty single-line value (e.g. deployment names).
+
+    Empty strings would silently land in `config.toml` / `.env`; a value
+    containing `\\n` would corrupt either file. Both get re-prompted.
+    """
+    while True:
+        value = Prompt.ask(prompt).strip()
+        if not value:
+            console.print("[red]Value cannot be empty.[/red]")
+            continue
+        if _has_newline(value):
+            console.print("[red]Value cannot contain a newline.[/red]")
+            continue
+        return value
+
+
+def _has_newline(value: str) -> bool:
+    return "\n" in value or "\r" in value
 
 
 def _try_list_vision_deployments(

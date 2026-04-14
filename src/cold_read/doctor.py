@@ -7,10 +7,12 @@ AND at least one Model resolves green; all other states exit 1.
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import shutil
 from dataclasses import dataclass
-from typing import Optional
+from typing import Annotated, Optional
 
 import typer
 from rich.console import Console
@@ -21,6 +23,7 @@ from cold_read import registry as _registry
 from cold_read.providers import SHAPES, is_reserved
 
 console = Console()
+err_console = Console(stderr=True)
 
 GREEN = "green"
 YELLOW = "yellow"
@@ -39,7 +42,12 @@ class Check:
     message: str
 
 
-def doctor_command() -> None:
+def doctor_command(
+    output_json: Annotated[
+        bool,
+        typer.Option("--json", help="Emit the four sections as JSON for scripts/agents."),
+    ] = False,
+) -> None:
     user_config = _config.read_config()
 
     install = _check_install()
@@ -47,12 +55,40 @@ def doctor_command() -> None:
     provider_results, provider_checks = _check_providers(user_config)
     models = _check_models(user_config, provider_results)
 
-    _render("Install", install)
-    _render("Config", config)
-    _render("Providers", provider_checks)
-    _render("Models", models)
+    exit_code = _compute_exit_code(install, models)
 
-    raise typer.Exit(_compute_exit_code(install, models))
+    if output_json:
+        # Use stdout so the user can pipe it. Status glyphs are stripped;
+        # only `status` (green/yellow/red) and `message` ship.
+        payload = {
+            "install": [_to_dict(c) for c in install],
+            "config": [_to_dict(c) for c in config],
+            "providers": [_to_dict(c) for c in provider_checks],
+            "models": [_to_dict(c) for c in models],
+            "exit_code": exit_code,
+        }
+        print(json.dumps(payload, indent=2))
+    else:
+        _render("Install", install)
+        _render("Config", config)
+        _render("Providers", provider_checks)
+        _render("Models", models)
+        if exit_code != 0:
+            err_console.print(
+                "\n[red]doctor: at least one critical check failed.[/red] "
+                "Run `resume-cold-read init` to set up missing pieces."
+            )
+
+    raise typer.Exit(exit_code)
+
+
+_RICH_MARKUP = re.compile(r"\[/?[a-zA-Z][\w\s=#]*\]")
+
+
+def _to_dict(c: "Check") -> dict:
+    # Strip Rich markup tokens (e.g. `[bold]...[/bold]`) so the JSON
+    # message is clean for downstream consumers.
+    return {"status": c.status, "message": _RICH_MARKUP.sub("", c.message)}
 
 
 # -- Section: Install -----------------------------------------------------
