@@ -407,6 +407,7 @@ name = "resume-cold-read"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "openai" },
     { name = "platformdirs" },
     { name = "python-dotenv" },
@@ -422,6 +423,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.27" },
     { name = "openai" },
     { name = "platformdirs", specifier = ">=4" },
     { name = "python-dotenv" },

@@ -14,8 +14,13 @@ def main() -> None:
 
 def register_commands() -> None:
     from cold_read.eval import eval_command
+    from cold_read.wizard import init_command
 
     app.command(name="eval", help="Run LLM evals against a resume PDF.")(eval_command)
+    app.command(
+        name="init",
+        help="Interactive wizard: configure providers and default model.",
+    )(init_command)
 
 
 register_commands()
