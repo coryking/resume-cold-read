@@ -9,14 +9,12 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from dotenv import load_dotenv
 from openai import AzureOpenAI, OpenAI
 from rich.console import Console
 from rich.table import Table
 
+from cold_read import config as _config
 from cold_read import prompts as _prompts
-
-load_dotenv()
 
 console = Console()
 MODELS: dict[str, dict] = {
@@ -97,16 +95,17 @@ def _compose_jd_prompt(jd_path: Path, company_slug: str | None) -> tuple[str, st
     # Part 1: Preamble
     parts.append("## Screening Context\n\n" + _prompts.load_prompt_file("preamble.md"))
 
-    # Part 2: Company dossier (optional). Bucket-2 resolution (slug → user config
-    # dir) is added in a later unit; for now only explicit file paths are honored.
+    # Part 2: Company dossier (optional). `_config.resolve_company` accepts
+    # either a file path or a slug rooted in the user config dir and never
+    # falls back to packaged bucket-1 prompts.
     if company_slug:
-        company_path = Path(company_slug)
-        if company_path.is_file():
-            parts.append("## Company\n\n" + company_path.read_text())
+        dossier = _config.resolve_company(company_slug)
+        if dossier is not None:
+            parts.append("## Company\n\n" + dossier.read_text())
         else:
             console.print(
                 f"  [yellow]Warning:[/yellow] No company dossier found for '{company_slug}'. "
-                f"Pass a file path; slug resolution lands in a later unit."
+                f"Pass a file path or create `{_config.companies_dir() / (company_slug + '.md')}`."
             )
 
     # Part 3: JD
