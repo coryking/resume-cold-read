@@ -29,17 +29,19 @@ uvx resume-cold-read eval --help
 
 ## Configure
 
-Credentials live in environment variables. Export them in your shell, or put them in a `.env` file in your working directory or at `~/.config/resume-cold-read/.env` (checked in that order).
+Credentials live in environment variables, grouped by provider shape. Export them in your shell, or put them in a `.env` file at `~/.config/resume-cold-read/.env` (recommended) or in the directory you run from. The config-dir `.env` wins over a CWD `.env`, and anything already in your process environment wins over both.
 
 ```bash
-# Azure OpenAI — primary vision model
-AZURE_PRIMARY_API_KEY=...
-AZURE_PRIMARY_ENDPOINT=https://your-resource.openai.azure.com/
+# Azure OpenAI — GPT-class vision models (calibrated default)
+AZURE_OPENAI_API_KEY=...
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 
-# Azure OpenAI — secondary (optional, for MaaS models like Grok)
-AZURE_SECONDARY_API_KEY=...
-AZURE_SECONDARY_ENDPOINT=...
+# Azure MaaS — Models-as-a-Service endpoints (Grok, Llama, DeepSeek, …)
+AZURE_MAAS_API_KEY=...
+AZURE_MAAS_ENDPOINT=...
 ```
+
+On macOS `~/.config/` becomes `~/Library/Application Support/`, and on Windows it becomes `%APPDATA%` — `platformdirs` picks the right one automatically.
 
 Run `resume-cold-read eval --list-models` to see all supported models and the env vars each one requires.
 
