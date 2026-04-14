@@ -26,12 +26,13 @@ A feature that reads bucket-2 data from a bucket-1 location (e.g. loading a comp
 
 ## Engineering ownership
 
-You own this codebase. When a code smell surfaces while working on a feature, fix it at the root rather than adding another adapter on top. Push back when an approach creates debt. Read the existing code before adding — it is ~600 lines.
+You own this codebase. When a code smell surfaces while working on a feature, fix it at the root rather than adding another adapter on top. Push back when an approach creates debt.
 
 ## Principles
 
 - **One authoritative source.** Prompts are the source of truth for eval behavior. `manifest.json` is the source of truth for phase config. The code composes them; it does not duplicate their logic.
 - **Wait for three variants before abstracting.** The model registry, prompt composition, and provider support stay concrete until a third real case shows up.
+- **Load the whole tree before editing.** The code + prompts corpus is small enough to fit in full context. Holistic reasoning catches cross-cutting consequences, naming drift, and duplicated logic that piecemeal reads miss. Revisit if the codebase grows past the point where this is uneconomical.
 
 ## File layout
 
