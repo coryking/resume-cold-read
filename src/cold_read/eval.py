@@ -13,17 +13,27 @@ from cold_read import config as _config
 from cold_read import output as _output
 from cold_read import prompts as _prompts
 from cold_read import registry as _registry
+from cold_read.errors import (
+    InvocationError,
+    PackageResourceError,
+    UserConfigError,
+)
 from cold_read.providers.shape import CredentialsMissingError, EvalResult
 
 console = Console()
 
 
 def _load_prompt(prompt_id: str) -> str:
-    """Load a prompt file by phase ID, re-raising as typer.BadParameter for CLI UX."""
+    """Load a prompt file by phase ID, translating into a bucket-labeled error."""
     try:
         return _prompts.load_prompt(prompt_id)
     except _prompts.UnknownPromptError as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise InvocationError(str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise PackageResourceError(
+            f"Packaged prompt missing: {exc}",
+            suggestion="Try `uv tool install --force resume-cold-read` to reinstall.",
+        ) from exc
 
 
 def _strip_jd_boilerplate(jd_text: str) -> str:
@@ -111,11 +121,11 @@ def _pdf_to_pngs(pdf_path: Path) -> list[Path]:
         text=True,
     )
     if result.returncode != 0:
-        raise typer.Exit(f"pdftoppm failed: {result.stderr}")
+        raise InvocationError(f"pdftoppm failed: {result.stderr.strip()}")
 
     pngs = sorted(Path(tmp_dir).glob("page-*.png"))
     if not pngs:
-        raise typer.Exit("pdftoppm produced no output files.")
+        raise InvocationError("pdftoppm produced no output files.")
 
     return pngs
 
@@ -145,9 +155,9 @@ def eval_command(
         typer.Option(help="Prompt phase to run: phase1-visual, phase2-pm, phase2-swe, or 'all'."),
     ] = "phase1-visual",
     model: Annotated[
-        str,
-        typer.Option(help="Model to use."),
-    ] = "gpt52",
+        str | None,
+        typer.Option(help="Model alias. Defaults to config.toml `default_model`."),
+    ] = None,
     jd: Annotated[
         Path | None,
         typer.Option("--jd", help="Path to a job description file. Enables JD-based eval (composable prompt)."),
@@ -198,11 +208,9 @@ def eval_command(
     jd_mode = jd is not None
     if jd_mode:
         if not jd.exists():
-            console.print(f"[red]Error:[/red] JD file not found: {jd}")
-            raise typer.Exit(1)
+            raise InvocationError(f"JD file not found: {jd}")
         if pdf is None:
-            console.print("[red]Error:[/red] PDF argument is required with --jd.")
-            raise typer.Exit(1)
+            raise InvocationError("PDF argument is required with --jd.")
 
     if company and not jd_mode:
         console.print("[yellow]Warning:[/yellow] --company is ignored without --jd.")
@@ -230,27 +238,39 @@ def eval_command(
     )
 
     if pdf is None and not all_fixed:
-        console.print("[red]Error:[/red] PDF argument is required for non-calibration prompts.")
-        raise typer.Exit(1)
+        raise InvocationError("PDF argument is required for non-calibration prompts.")
 
     if pdf is not None and not pdf.exists():
-        console.print(f"[red]Error:[/red] File not found: {pdf}")
-        raise typer.Exit(1)
+        raise InvocationError(f"File not found: {pdf}")
 
-    # Determine which models to run
-    if model not in _registry.MODELS:
-        console.print(f"[red]Error:[/red] Unknown model '{model}'. Use --list-models to see available.")
-        raise typer.Exit(1)
-    model_names = [model]
+    # Resolve which model to run. `--model` overrides; otherwise fall back to
+    # the user's configured default_model. If neither is set, this is a
+    # first-run state that `init` resolves.
+    user_config = _config.read_config()
+    model_alias = model or user_config.default_model
+    if model_alias is None:
+        raise UserConfigError(
+            "No model selected. Pass --model or set `default_model` in config.toml.",
+            suggestion="Run `resume-cold-read init` to configure a default.",
+        )
+    if model_alias not in _registry.MODELS:
+        raise InvocationError(
+            f"Unknown model '{model_alias}'. "
+            f"Available: {', '.join(_registry.list_aliases())}."
+        )
+    model_names = [model_alias]
 
     # Resolve model configs up-front so deployment-map misses fail fast,
     # before PDF conversion or API calls.
-    user_config = _config.read_config()
     try:
         resolved_models = {name: _registry.resolve(name, user_config) for name in model_names}
     except _registry.UnresolvedDeploymentError as exc:
-        console.print(f"[red]Error:[/red] {exc}")
-        raise typer.Exit(1) from exc
+        raise UserConfigError(
+            str(exc),
+            suggestion="Run `resume-cold-read init` or edit config.toml directly.",
+        ) from exc
+    except _registry.UnknownModelError as exc:
+        raise InvocationError(str(exc)) from exc
 
     # Convert PDF to PNGs (only if needed)
     pngs: list[Path] = []
@@ -316,8 +336,13 @@ def eval_command(
             try:
                 result = _run_model_eval(resolved, prompt_text, phase_pngs)
             except CredentialsMissingError as e:
-                console.print(f"  FAILED: {e}\n", highlight=False)
-                continue
+                # Translate to a bucket-2 user-config error so the CLI
+                # formatter can steer the user at `init` rather than leaving
+                # them parsing a shape-internal exception name.
+                raise UserConfigError(
+                    str(e),
+                    suggestion="Run `resume-cold-read init` to set up this shape.",
+                ) from e
             except Exception as e:
                 console.print(f"  FAILED: {type(e).__name__}: {e}\n", highlight=False)
                 continue
