@@ -26,15 +26,13 @@ CREDENTIAL_FIELDS = (
 
 
 def _build_client() -> OpenAI:
-    key = os.environ.get("AZURE_MAAS_API_KEY")
-    endpoint = os.environ.get("AZURE_MAAS_ENDPOINT")
-    if not key or not endpoint:
-        missing = [f.name for f in CREDENTIAL_FIELDS if not os.environ.get(f.name)]
+    missing = SHAPE.missing_env()
+    if missing:
         raise CredentialsMissingError(
             f"Missing env vars for azure-maas: {', '.join(missing)}"
         )
-    base_url = endpoint.rstrip("/") + "/openai/v1/"
-    return OpenAI(base_url=base_url, api_key=key)
+    base_url = os.environ["AZURE_MAAS_ENDPOINT"].rstrip("/") + "/openai/v1/"
+    return OpenAI(base_url=base_url, api_key=os.environ["AZURE_MAAS_API_KEY"])
 
 
 def run(prompt_text: str, images: list[Path], extras: dict) -> EvalResult:

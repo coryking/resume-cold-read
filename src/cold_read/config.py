@@ -136,7 +136,20 @@ def read_config() -> Config:
 
 def write_config(cfg: Config) -> Path:
     """Atomically write a Config to `config.toml` (mode 0o600)."""
-    return _atomic_write(config_file(), _serialize_config(cfg), mode=0o600)
+    return atomic_write(config_file(), _serialize_config(cfg), mode=0o600)
+
+
+def write_env_file(env_values: dict[str, str]) -> Path:
+    """Atomically write the config-dir `.env` file (mode 0o600).
+
+    Keys are sorted for deterministic output. Every value is written as a
+    bare `KEY=value` line — no shell-quoting, since `python-dotenv` does
+    not require it on read.
+    """
+    path = env_file()
+    lines = [f"{k}={v}" for k, v in sorted(env_values.items())]
+    content = "\n".join(lines) + ("\n" if lines else "")
+    return atomic_write(path, content, mode=0o600)
 
 
 def resolve_company(slug_or_path: str) -> Path | None:
@@ -168,7 +181,7 @@ def resolve_company(slug_or_path: str) -> Path | None:
 # -- Internals -------------------------------------------------------------
 
 
-def _atomic_write(path: Path, content: str, mode: int = 0o600) -> Path:
+def atomic_write(path: Path, content: str, mode: int = 0o600) -> Path:
     """Write `content` to `path` via tempfile-in-same-dir + os.replace.
 
     Guarantees that a crash or Ctrl-C mid-write leaves the pre-existing

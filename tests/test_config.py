@@ -17,22 +17,6 @@ from cold_read.config import (
 )
 
 
-@pytest.fixture
-def fake_dirs(monkeypatch, tmp_path):
-    """Redirect platformdirs lookups into a tmpdir tree."""
-    cfg = tmp_path / "config"
-    data = tmp_path / "data"
-    monkeypatch.setattr(
-        _config.platformdirs, "user_config_dir", lambda app_name: str(cfg)
-    )
-    monkeypatch.setattr(
-        _config.platformdirs, "user_data_dir", lambda app_name: str(data)
-    )
-    # Pin CWD too, so load_env's "CWD .env" branch is deterministic.
-    monkeypatch.chdir(tmp_path)
-    return cfg, data, tmp_path
-
-
 # -- config dir / data dir creation ----------------------------------------
 
 

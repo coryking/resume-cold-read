@@ -57,6 +57,13 @@ class ProviderShape:
     run: RunFn
     credential_test: CredentialTestFn
 
+    def missing_env(self) -> list[str]:
+        """Return the names of declared credential fields not set in the
+        process environment."""
+        import os
+
+        return [f.name for f in self.credential_fields if not os.environ.get(f.name)]
+
 
 class CredentialsMissingError(RuntimeError):
     """Raised by a shape when its required env fields are not set."""

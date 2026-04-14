@@ -158,9 +158,7 @@ def _check_providers(
         if is_reserved(shape_name):
             continue
 
-        missing = [
-            f.name for f in shape.credential_fields if not os.environ.get(f.name)
-        ]
+        missing = shape.missing_env()
         if missing:
             results[shape_name] = None
             checks.append(

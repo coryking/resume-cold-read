@@ -26,16 +26,14 @@ CREDENTIAL_FIELDS = (
 
 
 def _build_client(api_version: str) -> AzureOpenAI:
-    key = os.environ.get("AZURE_OPENAI_API_KEY")
-    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
-    if not key or not endpoint:
-        missing = [f.name for f in CREDENTIAL_FIELDS if not os.environ.get(f.name)]
+    missing = SHAPE.missing_env()
+    if missing:
         raise CredentialsMissingError(
             f"Missing env vars for azure-openai: {', '.join(missing)}"
         )
     return AzureOpenAI(
-        azure_endpoint=endpoint,
-        api_key=key,
+        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+        api_key=os.environ["AZURE_OPENAI_API_KEY"],
         api_version=api_version,
     )
 

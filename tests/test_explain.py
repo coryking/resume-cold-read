@@ -11,20 +11,6 @@ from cold_read.cli import app
 runner = CliRunner()
 
 
-@pytest.fixture
-def fake_dirs(monkeypatch, tmp_path):
-    cfg = tmp_path / "config"
-    data = tmp_path / "data"
-    monkeypatch.setattr(
-        _config.platformdirs, "user_config_dir", lambda app_name: str(cfg)
-    )
-    monkeypatch.setattr(
-        _config.platformdirs, "user_data_dir", lambda app_name: str(data)
-    )
-    monkeypatch.chdir(tmp_path)
-    return cfg, data, tmp_path
-
-
 def _no_shape_run(monkeypatch):
     """Assert the explain path doesn't call any provider shape."""
     from cold_read.providers import SHAPES

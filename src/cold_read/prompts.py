@@ -10,6 +10,7 @@ from __future__ import annotations
 import atexit
 import json
 from contextlib import ExitStack
+from functools import lru_cache
 from importlib.resources import as_file, files
 from pathlib import Path
 
@@ -28,13 +29,15 @@ class UnknownPromptError(KeyError):
     """Raised when a phase id is not present in the manifest."""
 
 
+@lru_cache(maxsize=1)
 def load_manifest() -> dict:
-    """Return the parsed prompts manifest."""
+    """Return the parsed prompts manifest. Cached for the process lifetime."""
     return json.loads((_PROMPTS / "manifest.json").read_text())
 
 
+@lru_cache(maxsize=None)
 def load_prompt_file(filename: str) -> str:
-    """Return the text of a packaged prompt file by filename."""
+    """Return the text of a packaged prompt file by filename. Cached."""
     return (_PROMPTS / filename).read_text()
 
 

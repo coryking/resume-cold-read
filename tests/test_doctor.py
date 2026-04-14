@@ -9,32 +9,6 @@ from cold_read import doctor
 from cold_read import prompts as _prompts
 
 
-@pytest.fixture
-def fake_dirs(monkeypatch, tmp_path):
-    cfg = tmp_path / "config"
-    data = tmp_path / "data"
-    monkeypatch.setattr(
-        _config.platformdirs, "user_config_dir", lambda app_name: str(cfg)
-    )
-    monkeypatch.setattr(
-        _config.platformdirs, "user_data_dir", lambda app_name: str(data)
-    )
-    monkeypatch.chdir(tmp_path)
-    # Drop all Azure creds from the test shell so doctor is deterministic.
-    for var in (
-        "AZURE_OPENAI_API_KEY",
-        "AZURE_OPENAI_ENDPOINT",
-        "AZURE_MAAS_API_KEY",
-        "AZURE_MAAS_ENDPOINT",
-        "AZURE_PRIMARY_API_KEY",
-        "AZURE_PRIMARY_ENDPOINT",
-        "AZURE_SECONDARY_API_KEY",
-        "AZURE_SECONDARY_ENDPOINT",
-    ):
-        monkeypatch.delenv(var, raising=False)
-    return cfg, data, tmp_path
-
-
 def _stub_shape(monkeypatch, shape_name, ok, reason=""):
     from cold_read.providers import SHAPES
     from cold_read.providers.shape import CredentialTestResult, ProviderShape

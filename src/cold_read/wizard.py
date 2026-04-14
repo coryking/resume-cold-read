@@ -120,7 +120,7 @@ def _prompt_shape_choice(
     table.add_column("Status")
 
     for name in available:
-        aliases = _aliases_for_shape(name)
+        aliases = _registry.aliases_for_shape(name)
         resolvable = sum(
             1 for a in aliases if _alias_resolvable(a, user_config)
         )
@@ -220,7 +220,7 @@ def _configure_azure_openai(
             env_updates["AZURE_OPENAI_API_KEY"],
         )
 
-        aliases = _aliases_for_shape("azure-openai")
+        aliases = _registry.aliases_for_shape("azure-openai")
         deployment_map: dict[str, str] = {}
         for alias in aliases:
             entry = _registry.MODELS[alias]
@@ -259,7 +259,7 @@ def _configure_azure_maas(
         _apply_env(env_updates)
 
         deployment_map: dict[str, str] = {}
-        for alias in _aliases_for_shape("azure-maas"):
+        for alias in _registry.aliases_for_shape("azure-maas"):
             deployment_map[alias] = Prompt.ask(
                 f"Deployment name for `{alias}` on this MaaS endpoint"
             ).strip()
@@ -405,14 +405,6 @@ def _pick_deployment_for_alias(
     return None
 
 
-def _aliases_for_shape(shape_name: str) -> list[str]:
-    return [
-        alias
-        for alias, entry in _registry.MODELS.items()
-        if entry.shape == shape_name
-    ]
-
-
 def _alias_resolvable(alias: str, user_config: _config.Config) -> bool:
     try:
         _registry.resolve(alias, user_config)
@@ -440,12 +432,7 @@ def _load_env_values() -> dict[str, str]:
 
 def _write_env_file(env_values: dict[str, str]) -> None:
     """Atomically write the merged .env at mode 0o600."""
-    path = _config.env_file()
-    lines = [f"{k}={v}" for k, v in sorted(env_values.items())]
-    content = "\n".join(lines) + ("\n" if lines else "")
-    # Re-use config._atomic_write so every bucket-2 write goes through the
-    # same tempfile-then-rename path.
-    _config._atomic_write(path, content, mode=0o600)
+    _config.write_env_file(env_values)
 
 
 __all__ = ["init_command"]

@@ -10,20 +10,6 @@ from cold_read import config as _config
 from cold_read import output as _output
 
 
-@pytest.fixture
-def fake_dirs(monkeypatch, tmp_path):
-    cfg = tmp_path / "config"
-    data = tmp_path / "data"
-    monkeypatch.setattr(
-        _config.platformdirs, "user_config_dir", lambda app_name: str(cfg)
-    )
-    monkeypatch.setattr(
-        _config.platformdirs, "user_data_dir", lambda app_name: str(data)
-    )
-    monkeypatch.chdir(tmp_path)
-    return cfg, data, tmp_path
-
-
 def test_default_output_path_lives_under_data_runs_dir(fake_dirs):
     _, data, _ = fake_dirs
 

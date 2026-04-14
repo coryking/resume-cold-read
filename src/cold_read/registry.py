@@ -109,3 +109,10 @@ def resolve(alias: str, config: Config) -> ResolvedModel:
 def list_aliases() -> list[str]:
     """Return the registered aliases in a deterministic order."""
     return sorted(MODELS)
+
+
+def aliases_for_shape(shape_name: str) -> list[str]:
+    """Return registered aliases that resolve to a given shape, sorted."""
+    return sorted(
+        alias for alias, entry in MODELS.items() if entry.shape == shape_name
+    )

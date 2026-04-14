@@ -17,27 +17,6 @@ from cold_read.errors import (
 runner = CliRunner()
 
 
-@pytest.fixture
-def fake_dirs(monkeypatch, tmp_path):
-    cfg = tmp_path / "config"
-    data = tmp_path / "data"
-    monkeypatch.setattr(
-        _config.platformdirs, "user_config_dir", lambda app_name: str(cfg)
-    )
-    monkeypatch.setattr(
-        _config.platformdirs, "user_data_dir", lambda app_name: str(data)
-    )
-    monkeypatch.chdir(tmp_path)
-    for var in (
-        "AZURE_OPENAI_API_KEY",
-        "AZURE_OPENAI_ENDPOINT",
-        "AZURE_MAAS_API_KEY",
-        "AZURE_MAAS_ENDPOINT",
-    ):
-        monkeypatch.delenv(var, raising=False)
-    return cfg, data, tmp_path
-
-
 # -- Exception class hierarchy --------------------------------------------
 
 

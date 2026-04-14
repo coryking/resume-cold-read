@@ -12,28 +12,6 @@ from cold_read import config as _config
 from cold_read import wizard
 
 
-@pytest.fixture
-def fake_dirs(monkeypatch, tmp_path):
-    cfg = tmp_path / "config"
-    data = tmp_path / "data"
-    monkeypatch.setattr(
-        _config.platformdirs, "user_config_dir", lambda app_name: str(cfg)
-    )
-    monkeypatch.setattr(
-        _config.platformdirs, "user_data_dir", lambda app_name: str(data)
-    )
-    monkeypatch.chdir(tmp_path)
-    # Clean credential slate so tests don't inherit whatever the dev shell has.
-    for var in (
-        "AZURE_OPENAI_API_KEY",
-        "AZURE_OPENAI_ENDPOINT",
-        "AZURE_MAAS_API_KEY",
-        "AZURE_MAAS_ENDPOINT",
-    ):
-        monkeypatch.delenv(var, raising=False)
-    return cfg, data, tmp_path
-
-
 class _Prompter:
     """Deterministic stand-in for rich.prompt.{Prompt,Confirm}.ask().
 
@@ -344,10 +322,11 @@ def test_is_vision_family_rejects_non_vision_models():
 
 
 def test_aliases_for_shape_groups_by_shape():
-    aliases = wizard._aliases_for_shape("claude-cli")
-    assert set(aliases) == {"claude-sonnet", "claude-opus"}
-    assert wizard._aliases_for_shape("azure-openai") == ["gpt52"]
-    assert wizard._aliases_for_shape("azure-maas") == ["grok4"]
+    from cold_read.registry import aliases_for_shape
+
+    assert set(aliases_for_shape("claude-cli")) == {"claude-sonnet", "claude-opus"}
+    assert aliases_for_shape("azure-openai") == ["gpt52"]
+    assert aliases_for_shape("azure-maas") == ["grok4"]
 
 
 def test_write_env_file_is_mode_0600(fake_dirs):
