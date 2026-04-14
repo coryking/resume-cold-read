@@ -12,38 +12,10 @@ from rich.table import Table
 from cold_read import config as _config
 from cold_read import output as _output
 from cold_read import prompts as _prompts
-from cold_read.providers import SHAPES
+from cold_read import registry as _registry
 from cold_read.providers.shape import CredentialsMissingError, EvalResult
 
 console = Console()
-
-# Model registry. Each entry names a provider shape plus per-alias extras
-# that the shape consumes via its `run()` / `credential_test()` `extras`
-# dict. Unit 6 of the install-story plan moves `deployment` out of here
-# and into user-owned config.toml; for now it stays as a maintainer-shipped
-# default so the four currently-registered models keep working.
-MODELS: dict[str, dict] = {
-    "gpt52": {
-        "shape": "azure-openai",
-        "deployment": "gpt-52-chat",
-        "api_version": "2024-12-01-preview",
-        "reasoning": True,
-    },
-    "grok4": {
-        "shape": "azure-maas",
-        "deployment": "grok-4-fast-reasoning",
-    },
-    "claude-sonnet": {
-        "shape": "claude-cli",
-        "claude_alias": "sonnet",
-        "deployment": "claude-sonnet-4-6",
-    },
-    "claude-opus": {
-        "shape": "claude-cli",
-        "claude_alias": "opus",
-        "deployment": "claude-opus-4-6",
-    },
-}
 
 
 def _load_prompt(prompt_id: str) -> str:
@@ -148,22 +120,14 @@ def _pdf_to_pngs(pdf_path: Path) -> list[Path]:
     return pngs
 
 
-def _run_model_eval(model_name: str, prompt_text: str, image_pngs: list[Path]) -> dict:
-    """Resolve the shape for `model_name` and invoke it.
-
-    Returns the legacy dict shape the output loop expects. Once the rest
-    of the pipeline speaks in `EvalResult` we can drop the translation.
-    """
-    model_config = MODELS[model_name]
-    shape_name = model_config["shape"]
-    shape = SHAPES[shape_name]
-
-    extras = {k: v for k, v in model_config.items() if k != "shape"}
-    eval_result: EvalResult = shape.run(prompt_text, image_pngs, extras)
-
+def _run_model_eval(
+    resolved: _registry.ResolvedModel, prompt_text: str, image_pngs: list[Path]
+) -> dict:
+    """Invoke a pre-resolved model. Returns the legacy dict shape."""
+    eval_result: EvalResult = resolved.shape.run(prompt_text, image_pngs, resolved.extras)
     return {
-        "model": model_name,
-        "deployment": model_config.get("deployment", ""),
+        "model": resolved.alias,
+        "deployment": resolved.deployment or "",
         "content": eval_result.content,
         "prompt_tokens": eval_result.prompt_tokens,
         "completion_tokens": eval_result.completion_tokens,
@@ -207,21 +171,25 @@ def eval_command(
 ) -> None:
     """Run LLM evals against a resume PDF."""
     if list_models:
+        user_config = _config.read_config()
         table = Table(title="Available Models")
         table.add_column("Name", style="bold")
-        table.add_column("Deployment")
         table.add_column("Shape")
+        table.add_column("Deployment")
         table.add_column("Env Vars")
 
-        for name, cfg in MODELS.items():
-            shape = SHAPES[cfg["shape"]]
+        for alias in _registry.list_aliases():
+            entry = _registry.MODELS[alias]
+            try:
+                resolved = _registry.resolve(alias, user_config)
+                deployment = resolved.deployment or "—"
+                shape = resolved.shape
+            except _registry.UnresolvedDeploymentError:
+                from cold_read.providers import SHAPES as _SHAPES
+                shape = _SHAPES[entry.shape]
+                deployment = "[yellow]not configured[/yellow]"
             env_vars = ", ".join(f.name for f in shape.credential_fields) or "—"
-            table.add_row(
-                name,
-                cfg.get("deployment", "—"),
-                shape.name,
-                env_vars,
-            )
+            table.add_row(alias, shape.name, deployment, env_vars)
 
         console.print(table)
         raise typer.Exit()
@@ -270,10 +238,19 @@ def eval_command(
         raise typer.Exit(1)
 
     # Determine which models to run
-    if model not in MODELS:
+    if model not in _registry.MODELS:
         console.print(f"[red]Error:[/red] Unknown model '{model}'. Use --list-models to see available.")
         raise typer.Exit(1)
     model_names = [model]
+
+    # Resolve model configs up-front so deployment-map misses fail fast,
+    # before PDF conversion or API calls.
+    user_config = _config.read_config()
+    try:
+        resolved_models = {name: _registry.resolve(name, user_config) for name in model_names}
+    except _registry.UnresolvedDeploymentError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
 
     # Convert PDF to PNGs (only if needed)
     pngs: list[Path] = []
@@ -318,10 +295,10 @@ def eval_command(
 
         for model_name in model_names:
             eval_num += 1
-            model_config = MODELS[model_name]
-            max_imgs = model_config.get("max_images")
-            deployment = model_config.get("deployment", "")
-            reasoning = "reasoning" if model_config.get("reasoning") else "standard"
+            resolved = resolved_models[model_name]
+            max_imgs = resolved.extras.get("max_images")
+            deployment = resolved.deployment or resolved.shape.name
+            reasoning = "reasoning" if resolved.extras.get("reasoning") else "standard"
 
             console.rule(f"[bold]({eval_num}/{total_evals}) {model_name} / {prompt_id}[/bold]")
 
@@ -337,7 +314,7 @@ def eval_command(
             console.print(f"  [dim]Calling API...[/dim]")
 
             try:
-                result = _run_model_eval(model_name, prompt_text, phase_pngs)
+                result = _run_model_eval(resolved, prompt_text, phase_pngs)
             except CredentialsMissingError as e:
                 console.print(f"  FAILED: {e}\n", highlight=False)
                 continue
