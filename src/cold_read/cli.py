@@ -13,6 +13,7 @@ def main() -> None:
 
 
 def register_commands() -> None:
+    from cold_read.doctor import doctor_command
     from cold_read.eval import eval_command
     from cold_read.wizard import init_command
 
@@ -21,6 +22,10 @@ def register_commands() -> None:
         name="init",
         help="Interactive wizard: configure providers and default model.",
     )(init_command)
+    app.command(
+        name="doctor",
+        help="Report on install + config + provider + model status.",
+    )(doctor_command)
 
 
 register_commands()
