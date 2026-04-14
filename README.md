@@ -15,7 +15,7 @@ Sends rendered resume pages as images to a vision model and gets back the reacti
 uv tool install resume-cold-read
 ```
 
-This installs the `cold-read` command into an isolated environment and puts it on your `PATH`.
+This installs the `resume-cold-read` command into an isolated environment and puts it on your `PATH`.
 
 Alternatives:
 
@@ -41,14 +41,14 @@ AZURE_SECONDARY_API_KEY=...
 AZURE_SECONDARY_ENDPOINT=...
 ```
 
-Run `cold-read eval --list-models` to see all supported models and the env vars each one requires.
+Run `resume-cold-read eval --list-models` to see all supported models and the env vars each one requires.
 
 ## Calibrate once per model
 
 Before trusting a model's evaluations, verify it can read a document accurately. Run the calibration suite one time per model:
 
 ```bash
-cold-read eval --prompt calibration
+resume-cold-read eval --prompt calibration
 ```
 
 Grade the output against the answer key (shipped with the package under `calibration/answer-key.md`; also viewable on [GitHub](https://github.com/coryking/resume-cold-read/blob/main/calibration/answer-key.md)). If a model cannot read a footer name or an 8pt email address, its content evaluations are not trustworthy.
@@ -58,13 +58,13 @@ Grade the output against the answer key (shipped with the package under `calibra
 Two passes run automatically: a **visual pass** (does the layout survive a 10-second recruiter scan?) followed by a **content pass** (does the resume address what the JD asks for?).
 
 ```bash
-cold-read eval path/to/resume.pdf --jd path/to/job-description.md
+resume-cold-read eval path/to/resume.pdf --jd path/to/job-description.md
 ```
 
 Adding a company profile sharpens the content pass by grounding the screener in that company's hiring bar, tech stack, and culture:
 
 ```bash
-cold-read eval path/to/resume.pdf \
+resume-cold-read eval path/to/resume.pdf \
   --jd path/to/job-description.md \
   --company path/to/company-profile.md
 ```
@@ -80,9 +80,9 @@ See [examples/companies/meridian-ai.md](examples/companies/meridian-ai.md) for a
 ## Models
 
 ```bash
-cold-read eval --list-models          # Available models and their env vars
-cold-read eval --model grok4          # Pick a specific model
-cold-read eval -o result.md           # Custom output path
+resume-cold-read eval --list-models          # Available models and their env vars
+resume-cold-read eval --model grok4          # Pick a specific model
+resume-cold-read eval -o result.md           # Custom output path
 ```
 
 Claude models (`claude-sonnet`, `claude-opus`) run through the [Claude CLI](https://claude.ai/code) rather than an API key. Install the CLI if you want to use them.
@@ -104,9 +104,9 @@ Recalibrate with your own provider and model versions — these scores drift as 
 The `--prompt` flag runs one of a handful of sample prompts that don't require a JD:
 
 ```bash
-cold-read eval resume.pdf --prompt phase1-visual   # Visual / information architecture
-cold-read eval resume.pdf --prompt phase2-pm       # PM-lens content eval (demo universe)
-cold-read eval resume.pdf --prompt phase2-swe      # SWE-lens content eval (demo universe)
+resume-cold-read eval resume.pdf --prompt phase1-visual   # Visual / information architecture
+resume-cold-read eval resume.pdf --prompt phase2-pm       # PM-lens content eval (demo universe)
+resume-cold-read eval resume.pdf --prompt phase2-swe      # SWE-lens content eval (demo universe)
 ```
 
 `phase1-visual` is role-agnostic and useful for a quick layout check. The `phase2-*` prompts use the Meridian AI demo universe and are intended as reference implementations — they show what a full company-specific prompt looks like. For real use, compose your own with `--jd` and `--company`.

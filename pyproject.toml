@@ -1,5 +1,5 @@
 [project]
-name = "cold-read"
+name = "resume-cold-read"
 version = "0.1.0"
 description = "Resume Cold Reader — evaluate resumes with vision models the way a recruiter would."
 readme = "README.md"
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-cold-read = "cold_read.cli:app"
+resume-cold-read = "cold_read.cli:app"
 
 [build-system]
 requires = ["hatchling"]
