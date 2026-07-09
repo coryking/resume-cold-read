@@ -1,6 +1,6 @@
 """Model registry: alias → shape + shape-specific defaults.
 
-`MODELS` names the four aliases that ship today. Each entry only holds
+`MODELS` names the aliases that ship today. Each entry only holds
 what is intrinsic to the model itself (provider shape, API version,
 reasoning flag, claude alias). Deployment names are user-owned state
 (bucket 2) and live in `config.toml`; `resolve()` joins the two at call
@@ -49,6 +49,10 @@ class UnresolvedDeploymentError(RuntimeError):
 
 MODELS: dict[str, ModelEntry] = {
     "gpt52": ModelEntry(
+        shape="azure-openai",
+        extras={"api_version": "2024-12-01-preview", "reasoning": True},
+    ),
+    "gpt56": ModelEntry(
         shape="azure-openai",
         extras={"api_version": "2024-12-01-preview", "reasoning": True},
     ),

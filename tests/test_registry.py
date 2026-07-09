@@ -27,8 +27,14 @@ def _config_with_maps() -> Config:
     )
 
 
-def test_list_aliases_returns_the_four_registered_models():
-    assert list_aliases() == ["claude-opus", "claude-sonnet", "gpt52", "grok4"]
+def test_list_aliases_returns_the_registered_models():
+    assert list_aliases() == [
+        "claude-opus",
+        "claude-sonnet",
+        "gpt52",
+        "gpt56",
+        "grok4",
+    ]
 
 
 def test_resolve_azure_openai_pulls_deployment_from_config():
