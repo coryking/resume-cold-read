@@ -22,8 +22,13 @@ Then answer:
 
 3. **Recruiter screen question:** You're a recruiter, not the hiring manager. Your phone screen is 20 minutes: verify the person is real, roughly the right level, genuinely interested, and worth putting in front of the HM. Based on this resume and JD, what's the one thing you need to sanity-check? What are you listening for in the answer?
 
-4. **Decision:** Does this resume survive the cut for this specific role? Say YES, NO, or MAYBE with a one-sentence justification grounded in the JD requirements — not general resume quality.
+4. **Findings:** Treat this like a code review: severity-tagged findings, not a gut verdict. List every issue this resume has against this JD, each tagged:
+   - **[fatal]** — ends it at the resume screen; no phone screen happens
+   - **[probe]** — survivable if a screen resolves it; name the question and what answer clears it
+   - **[cosmetic]** — worth fixing, but would not alone cause rejection
 
-5. **Holistic cross-check:** Step back from the checklist. Read the career as one arc and ask: could this person plausibly do this job well? If that holistic read disagrees with your checklist-driven decision, say so explicitly — which read would a real screener follow, and what does the disagreement tell you about this resume?
+   Ground each finding in the JD or the document itself, not general resume quality. Then the verdict is mechanical, one line: **does not survive** if any fatal finding stands, otherwise **survives to a screen**. Don't re-judge — count.
 
-6. **What would have changed the read:** Your decision stands. Now, staying strictly within what the resume already claims — invent nothing — what two or three changes to how this existing content is framed, ordered, expanded, or cut would have most improved its odds against this JD? Name the specific bullet or section and say what you'd do to it.
+5. **Holistic cross-check:** Step back from the checklist. Read the career as one arc and ask: could this person plausibly do this job well? If that holistic read disagrees with the findings-derived verdict, say so explicitly — which read would a real screener follow, and what does the disagreement tell you about this resume?
+
+6. **What would have changed the read:** Your findings stand. Now, staying strictly within what the resume already claims — invent nothing — what two or three changes to how this existing content is framed, ordered, expanded, or cut would have most improved its odds against this JD? Name the specific bullet or section, say what you'd do to it, and which finding it clears or downgrades.
