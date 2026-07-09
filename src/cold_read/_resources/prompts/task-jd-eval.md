@@ -12,7 +12,7 @@ Ratings measure JD relevance only. Credibility is a separate axis: flag any clai
 
 Also scan the employment timeline as a whole — the dates lined up end to end, not section by section. Flag any gaps, overlapping roles, or chronology you'd want explained before putting this person in front of a hiring manager.
 
-Then produce a **JD coverage** checklist: every stated fit criterion and every preferred qualification, one line each, marked **demonstrated**, **partial**, or **missing**, naming the resume evidence (or its absence) in a few words. Cover every line of the JD's qualification lists — no cherry-picking.
+Then produce a **JD coverage** checklist: every stated fit criterion and every preferred qualification, one line each, marked **demonstrated**, **partial**, or **missing**, naming the resume evidence (or its absence) in a few words. Cover every line of the JD's qualification lists — no cherry-picking. Where the JD lists example technologies ("X, Y, or similar"), judge the capability, not the brand names: evidence of solving the same problem shape with different tools is **partial** with the equivalence named, not **missing**.
 
 Then answer:
 
@@ -24,4 +24,6 @@ Then answer:
 
 4. **Decision:** Does this resume survive the cut for this specific role? Say YES, NO, or MAYBE with a one-sentence justification grounded in the JD requirements — not general resume quality.
 
-5. **What would have changed the read:** Your decision stands. Now, staying strictly within what the resume already claims — invent nothing — what two or three changes to how this existing content is framed, ordered, expanded, or cut would have most improved its odds against this JD? Name the specific bullet or section and say what you'd do to it.
+5. **Holistic cross-check:** Step back from the checklist. Read the career as one arc and ask: could this person plausibly do this job well? If that holistic read disagrees with your checklist-driven decision, say so explicitly — which read would a real screener follow, and what does the disagreement tell you about this resume?
+
+6. **What would have changed the read:** Your decision stands. Now, staying strictly within what the resume already claims — invent nothing — what two or three changes to how this existing content is framed, ordered, expanded, or cut would have most improved its odds against this JD? Name the specific bullet or section and say what you'd do to it.
