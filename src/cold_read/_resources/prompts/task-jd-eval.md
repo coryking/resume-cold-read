@@ -5,10 +5,14 @@ When you cite the resume, quote it verbatim — never paraphrase inside quotatio
 For each major section of the resume, rate it against the JD requirements:
 (a) Strong match — this directly addresses something the JD asks for, and I'd probe it in a screen
 (b) Relevant but undifferentiated — reasonable experience but doesn't stand out against other qualified candidates
-(c) Weak or missing — the JD asks for something this section doesn't deliver, or the claim feels inflated
+(c) Weak or missing — the JD asks for something this section doesn't deliver
 (d) Irrelevant or confusing — I don't see why this is here given what the role needs
 
+Ratings measure JD relevance only. Credibility is a separate axis: flag any claim that feels inflated, vague, or unverifiable as a **credibility flag** wherever it appears — including in sections you rated (a).
+
 Also scan the employment timeline as a whole — the dates lined up end to end, not section by section. Flag any gaps, overlapping roles, or chronology you'd want explained before putting this person in front of a hiring manager.
+
+Then produce a **JD coverage** checklist: every stated fit criterion and every preferred qualification, one line each, marked **demonstrated**, **partial**, or **missing**, naming the resume evidence (or its absence) in a few words. Cover every line of the JD's qualification lists — no cherry-picking.
 
 Then answer:
 
