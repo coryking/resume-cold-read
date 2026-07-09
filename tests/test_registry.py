@@ -48,7 +48,22 @@ def test_resolve_azure_openai_pulls_deployment_from_config():
     # shape invocation.
     assert resolved.extras["api_version"] == "2024-12-01-preview"
     assert resolved.extras["reasoning"] is True
+    # gpt-52-chat only accepts "medium"; gpt56/sol carries "high".
+    assert resolved.extras["reasoning_effort"] == "medium"
     assert resolved.extras["deployment"] == "gpt-52-chat"
+
+
+def test_resolve_gpt56_carries_high_reasoning_effort():
+    config = Config(
+        providers={
+            "azure-openai": ProviderConfig(deployment_map={"gpt56": "gpt-56-sol"})
+        },
+    )
+    resolved = resolve("gpt56", config)
+
+    assert resolved.shape.name == "azure-openai"
+    assert resolved.deployment == "gpt-56-sol"
+    assert resolved.extras["reasoning_effort"] == "high"
 
 
 def test_resolve_azure_maas_pulls_deployment_from_config():

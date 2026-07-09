@@ -162,7 +162,11 @@ def test_azure_openai_flow_writes_env_and_config_when_test_passes(
     cfg_root, _, _ = fake_dirs
 
     _mock_listing_success(
-        mocker, [{"id": "gpt-52-chat", "model": "gpt-5.2-chat"}]
+        mocker,
+        [
+            {"id": "gpt-52-chat", "model": "gpt-5.2-chat"},
+            {"id": "gpt-56-sol", "model": "gpt-5.6-sol"},
+        ],
     )
     _stub_shape_credential_test(monkeypatch, "azure-openai", ok=True)
 
@@ -170,7 +174,7 @@ def test_azure_openai_flow_writes_env_and_config_when_test_passes(
     #   shape choice -> "azure-openai"
     #   endpoint     -> https://real.openai.azure.com/
     #   api key      -> "k"
-    #   pick #1 for gpt52
+    #   pick #1 for gpt52, #2 for gpt56 (one pick per shape alias)
     #   default_model -> gpt52
     #   another provider? -> No
     prompter = _Prompter(
@@ -179,6 +183,7 @@ def test_azure_openai_flow_writes_env_and_config_when_test_passes(
             "k",
             "https://real.openai.azure.com/",
             "1",
+            "2",
             "gpt52",
         ],
         confirms=[False],
@@ -195,7 +200,10 @@ def test_azure_openai_flow_writes_env_and_config_when_test_passes(
 
     cfg = _config.read_config()
     assert cfg.default_model == "gpt52"
-    assert cfg.providers["azure-openai"].deployment_map == {"gpt52": "gpt-52-chat"}
+    assert cfg.providers["azure-openai"].deployment_map == {
+        "gpt52": "gpt-52-chat",
+        "gpt56": "gpt-56-sol",
+    }
 
 
 def test_azure_openai_flow_does_not_write_when_credential_test_fails_and_user_skips(
@@ -204,7 +212,11 @@ def test_azure_openai_flow_does_not_write_when_credential_test_fails_and_user_sk
     cfg_root, _, _ = fake_dirs
 
     _mock_listing_success(
-        mocker, [{"id": "gpt-52-chat", "model": "gpt-5.2-chat"}]
+        mocker,
+        [
+            {"id": "gpt-52-chat", "model": "gpt-5.2-chat"},
+            {"id": "gpt-56-sol", "model": "gpt-5.6-sol"},
+        ],
     )
     _stub_shape_credential_test(
         monkeypatch, "azure-openai", ok=False, reason="401 Unauthorized"
@@ -215,7 +227,8 @@ def test_azure_openai_flow_does_not_write_when_credential_test_fails_and_user_sk
             "azure-openai",
             "wrong-key",
             "https://real.openai.azure.com/",
-            "1",
+            "1",  # deployment pick for gpt52
+            "2",  # deployment pick for gpt56 (both picked before the cred test)
             # No default_model prompt will be asked because nothing was
             # configured; _prompt_default_model skips when eligible == [].
         ],
@@ -253,7 +266,11 @@ def test_wizard_preserves_existing_env_and_provider_sections(
     _config.write_config(pre_cfg)
 
     _mock_listing_success(
-        mocker, [{"id": "gpt-52-chat", "model": "gpt-5.2-chat"}]
+        mocker,
+        [
+            {"id": "gpt-52-chat", "model": "gpt-5.2-chat"},
+            {"id": "gpt-56-sol", "model": "gpt-5.6-sol"},
+        ],
     )
     _stub_shape_credential_test(monkeypatch, "azure-openai", ok=True)
 
@@ -262,8 +279,9 @@ def test_wizard_preserves_existing_env_and_provider_sections(
             "azure-openai",
             "k",
             "https://real.openai.azure.com/",
-            "1",
-            "gpt52",  # pick default_model among the now-two resolvable aliases
+            "1",  # deployment pick for gpt52
+            "2",  # deployment pick for gpt56
+            "gpt56",  # pick default_model among the now-three resolvable aliases
         ],
         confirms=[False],  # no further providers
     )
@@ -282,7 +300,8 @@ def test_wizard_preserves_existing_env_and_provider_sections(
         "grok4": "grok-4-fast-reasoning"
     }
     assert cfg.providers["azure-openai"].deployment_map == {
-        "gpt52": "gpt-52-chat"
+        "gpt52": "gpt-52-chat",
+        "gpt56": "gpt-56-sol",
     }
 
 
@@ -325,7 +344,7 @@ def test_aliases_for_shape_groups_by_shape():
     from cold_read.registry import aliases_for_shape
 
     assert set(aliases_for_shape("claude-cli")) == {"claude-sonnet", "claude-opus"}
-    assert aliases_for_shape("azure-openai") == ["gpt52"]
+    assert aliases_for_shape("azure-openai") == ["gpt52", "gpt56"]
     assert aliases_for_shape("azure-maas") == ["grok4"]
 
 

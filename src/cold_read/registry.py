@@ -50,11 +50,19 @@ class UnresolvedDeploymentError(RuntimeError):
 MODELS: dict[str, ModelEntry] = {
     "gpt52": ModelEntry(
         shape="azure-openai",
-        extras={"api_version": "2024-12-01-preview", "reasoning": True},
+        extras={
+            "api_version": "2024-12-01-preview",
+            "reasoning": True,
+            "reasoning_effort": "medium",
+        },
     ),
     "gpt56": ModelEntry(
         shape="azure-openai",
-        extras={"api_version": "2024-12-01-preview", "reasoning": True},
+        extras={
+            "api_version": "2024-12-01-preview",
+            "reasoning": True,
+            "reasoning_effort": "high",
+        },
     ),
     "grok4": ModelEntry(
         shape="azure-maas",

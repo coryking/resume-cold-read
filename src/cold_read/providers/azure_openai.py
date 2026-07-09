@@ -53,9 +53,12 @@ def run(prompt_text: str, images: list[Path], extras: dict) -> EvalResult:
     Required extras:
       - `deployment` (str): Azure deployment name to invoke.
       - `api_version` (str): API version the deployment expects.
-      - `reasoning` (bool, optional): if True, add `reasoning_effort` (value from
-        `COLD_READ_REASONING_EFFORT` env var, default "medium" — Azure gpt-52-chat
-        rejects "high" as of 2026-07).
+      - `reasoning` (bool, optional): if True, add `reasoning_effort`.
+      - `reasoning_effort` (str, optional): per-model effort level, used when
+        `reasoning` is True. The `COLD_READ_REASONING_EFFORT` env var overrides
+        it; absent both, defaults to "medium". Deployments differ in what they
+        accept — the gpt-52-chat alias only takes "medium", while gpt-5.6-sol
+        takes low/medium/high/xhigh.
       - `max_images` (int | None, optional): cap image count.
     """
     deployment = extras["deployment"]
@@ -65,7 +68,10 @@ def run(prompt_text: str, images: list[Path], extras: dict) -> EvalResult:
 
     params: dict = {"max_completion_tokens": 16384}
     if extras.get("reasoning"):
-        params["reasoning_effort"] = os.environ.get("COLD_READ_REASONING_EFFORT", "medium")
+        params["reasoning_effort"] = (
+            os.environ.get("COLD_READ_REASONING_EFFORT")
+            or extras.get("reasoning_effort", "medium")
+        )
 
     response = client.chat.completions.create(
         model=deployment,

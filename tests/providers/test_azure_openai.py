@@ -17,9 +17,15 @@ from cold_read.providers.shape import (
 
 @pytest.fixture
 def env(monkeypatch):
-    """Stand up the two Azure OpenAI creds in the process env."""
+    """Stand up the two Azure OpenAI creds in the process env.
+
+    Also clears `COLD_READ_REASONING_EFFORT` so the effort assertions below
+    exercise the per-model registry value, not whatever the runner's shell
+    happens to export.
+    """
     monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
+    monkeypatch.delenv("COLD_READ_REASONING_EFFORT", raising=False)
 
 
 @pytest.fixture
@@ -54,9 +60,10 @@ def test_run_passes_deployment_as_model_and_includes_base64_image(env, tiny_png,
         "prompt goes here",
         [tiny_png],
         extras={
-            "deployment": "gpt-52-chat",
+            "deployment": "gpt-56-sol",
             "api_version": "2024-12-01-preview",
             "reasoning": True,
+            "reasoning_effort": "high",
         },
     )
 
@@ -67,7 +74,8 @@ def test_run_passes_deployment_as_model_and_includes_base64_image(env, tiny_png,
 
     fake_client.chat.completions.create.assert_called_once()
     kwargs = fake_client.chat.completions.create.call_args.kwargs
-    assert kwargs["model"] == "gpt-52-chat"
+    assert kwargs["model"] == "gpt-56-sol"
+    # Per-model effort from extras is forwarded verbatim.
     assert kwargs["reasoning_effort"] == "high"
     assert kwargs["max_completion_tokens"] == 16384
     # Image should be base64-encoded into messages, not passed as a path.
