@@ -1,4 +1,6 @@
-Read this resume page by page. Evaluate it against the job description above. Ignore EEO statements, benefits sections, visa/sponsorship boilerplate, and other legal filler in the JD — focus on the role description, responsibilities, and qualifications.
+Read this resume page by page. Evaluate it against the job description above. Ignore EEO statements, benefits sections, visa/sponsorship boilerplate, and other legal filler in the JD — focus on the role description, responsibilities, and qualifications. Keep the JD's tiers straight: a gap against a stated requirement is not the same as a gap against a preferred qualification ("strong candidates may have"), even when competition effectively raises the bar — say which is which.
+
+When you cite the resume, quote it verbatim — never paraphrase inside quotation marks.
 
 For each major section of the resume, rate it against the JD requirements:
 (a) Strong match — this directly addresses something the JD asks for, and I'd probe it in a screen
@@ -6,12 +8,16 @@ For each major section of the resume, rate it against the JD requirements:
 (c) Weak or missing — the JD asks for something this section doesn't deliver, or the claim feels inflated
 (d) Irrelevant or confusing — I don't see why this is here given what the role needs
 
+Also scan the employment timeline as a whole — the dates lined up end to end, not section by section. Flag any gaps, overlapping roles, or chronology you'd want explained before putting this person in front of a hiring manager.
+
 Then answer:
 
 1. **Strongest match:** What's the single best alignment between this resume and this JD? Quote the specific resume element and the JD requirement it maps to.
 
-2. **Biggest gap:** What does the JD require that this resume fails to demonstrate? How fatal is this gap — dealbreaker, or something a strong screen could overcome?
+2. **Biggest gap:** What does the JD require that this resume fails to demonstrate? Is the gap against a stated requirement or a preferred qualification? How fatal is it — dealbreaker, or something a strong screen could overcome?
 
 3. **Recruiter screen question:** You're a recruiter, not the hiring manager. Your phone screen is 20 minutes: verify the person is real, roughly the right level, genuinely interested, and worth putting in front of the HM. Based on this resume and JD, what's the one thing you need to sanity-check? What are you listening for in the answer?
 
 4. **Decision:** Does this resume survive the cut for this specific role? Say YES, NO, or MAYBE with a one-sentence justification grounded in the JD requirements — not general resume quality.
+
+5. **What would have changed the read:** Your decision stands. Now, staying strictly within what the resume already claims — invent nothing — what two or three changes to how this existing content is framed, ordered, expanded, or cut would have most improved its odds against this JD? Name the specific bullet or section and say what you'd do to it.
