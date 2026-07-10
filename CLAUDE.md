@@ -51,6 +51,7 @@ JD-based evals compose a prompt at runtime from:
 2. Company profile (bucket 2, optional) — `--company` accepts a slug or a path
 3. JD file (bucket 3) — `--jd`
 4. `task-jd-eval.md` — evaluation instructions (bucket 1)
+5. `report-guide.md` — finding scales + feedback-not-verdict contract (bucket 1). The authoritative copy: composed into the prompt *and* appended verbatim to every saved JD-eval report, so a reader — human or LLM — who never saw the prompt gets the same semantics. The eval produces findings and reads, never a verdict, tier, or score; the only validation a resume has is a phone screen actually getting scheduled.
 
 Two passes run automatically: vision (`preamble.md` + `task-jd-vision.md`, no JD) then content (full composition above). Each pass is an independent API call.
 

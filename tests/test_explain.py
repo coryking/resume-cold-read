@@ -82,6 +82,9 @@ def test_explain_jd_mode_prints_both_passes_with_markers(
     assert "[from: preamble.md]" in result.output
     assert "[from: task-jd-vision.md]" in result.output
     assert "[from: task-jd-eval.md]" in result.output
+    # The report guide rides along in the content pass so the model scores
+    # findings against the same text that ships with the saved report.
+    assert "[from: report-guide.md]" in result.output
     # The JD path is threaded through as its own section source marker.
     # We match the filename fragment since Rich may wrap long paths.
     assert "jd.md]" in result.output

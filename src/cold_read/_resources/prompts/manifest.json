@@ -43,8 +43,8 @@
         {
           "id": "jd-content",
           "name": "Content Match vs. JD",
-          "parts": ["preamble.md", "company-{slug}.md", "task-jd-eval.md"],
-          "notes": "Company dossier is optional. Evaluates content against JD requirements."
+          "parts": ["preamble.md", "company-{slug}.md", "task-jd-eval.md", "report-guide.md"],
+          "notes": "Company dossier is optional. Evaluates content against JD requirements. report-guide.md is both prompt part and report footer — the finding scales ship with every saved report."
         }
       ],
       "notes": "Both passes run automatically when --jd is specified. Vision first, content second."

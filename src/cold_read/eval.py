@@ -109,6 +109,19 @@ def _compose_jd_prompt(
         ("task-jd-eval.md", "## Your Task\n\n" + _prompts.load_prompt_file("task-jd-eval.md"))
     )
 
+    # Part 5: Report guide. The single authoritative copy of the finding
+    # scales and the feedback-not-verdict contract. The model scores against
+    # it, and the CLI appends the same text verbatim to every saved report so
+    # a reader who never saw the prompt gets the same semantics.
+    sections.append(
+        (
+            "report-guide.md",
+            "## Report contract (reference — do not restate any part of this "
+            "section in your output; it is appended verbatim to the saved "
+            "report)\n\n" + _prompts.load_prompt_file("report-guide.md"),
+        )
+    )
+
     prompt_label = "jd-eval"
     if company_slug:
         company_path = Path(company_slug)
@@ -186,6 +199,11 @@ def _print_explain(
 
 def _print_section_banner(target: Console, label: str) -> None:
     target.rule(f"[bold]=== {label} ===[/bold]")
+
+
+def _report_guide_footer() -> str:
+    """The report guide as it ships at the end of saved JD-eval reports."""
+    return "## How to read this report\n\n" + _prompts.load_prompt_file("report-guide.md")
 
 
 def _list_model_rows(user_config: "_config.Config") -> list[dict]:
@@ -503,13 +521,18 @@ def eval_command(
                 console.print(result["content"], highlight=False)
                 console.print("", highlight=False)
 
-            # Save individual file under the runs dir
+            # Save individual file under the runs dir. Content-pass reports
+            # get the report guide appended so their finding scales travel
+            # with them; the vision pass has no findings table.
+            saved_content = result["content"]
+            if jd_mode and prompt_id != "jd-vision":
+                saved_content += "\n\n---\n\n" + _report_guide_footer()
             pdf_label = pdf.name if pdf else "calibration-resume"
             out_path = _output.save_individual(
                 model_name=model_name,
                 deployment=deployment,
                 prompt_id=prompt_id,
-                content=result["content"],
+                content=saved_content,
                 pdf_name=pdf_label,
             )
             console.print(f"  Saved: {out_path}\n", highlight=False)
@@ -522,6 +545,8 @@ def eval_command(
             parts = []
             for r in all_results:
                 parts.append(f"# {r['model']} / {r['prompt_id']}\n\n{r['content']}")
+            if jd_mode:
+                parts.append(_report_guide_footer())
             output.write_text("\n\n---\n\n".join(parts))
 
         console.print(f"Combined results written to {output}", highlight=False)

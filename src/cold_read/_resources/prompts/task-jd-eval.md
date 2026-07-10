@@ -1,5 +1,9 @@
 Read this resume page by page. Evaluate it against the job description above. Ignore EEO statements, benefits sections, visa/sponsorship boilerplate, and other legal filler in the JD — focus on the role description, responsibilities, and qualifications. Keep the JD's tiers straight: a gap against a stated requirement is not the same as a gap against a preferred qualification ("strong candidates may have"), even when competition effectively raises the bar — say which is which.
 
+You are producing feedback, not a verdict. The author's goal is reaching a phone screen, but whether this resume gets one depends on pool composition, timing, and screener idiosyncrasies nobody can observe from the document — so never estimate the odds, place the resume on a scale, or render an overall pass/fail judgment. Your value is naming precisely what a screener would notice, doubt, or miss, so the author can decide what to change.
+
+Calibrate every gap against the real competition: the plausible fraction of a cold-apply stack, not an imagined candidate who covers the JD's full wishlist. No real resume covers a senior JD's wishlist; a gap matters when plausible competing applicants demonstrably don't share it.
+
 When you cite the resume, quote it verbatim — never paraphrase inside quotation marks.
 
 For each major section of the resume, rate it against the JD requirements:
@@ -18,31 +22,12 @@ Then answer:
 
 1. **Strongest match:** What's the single best alignment between this resume and this JD? Quote the specific resume element and the JD requirement it maps to.
 
-2. **Biggest gap:** What does the JD require that this resume fails to demonstrate? Is the gap against a stated requirement or a preferred qualification? How fatal is it — dealbreaker, or something a strong screen could overcome?
+2. **Biggest gap:** What does the JD require that this resume fails to demonstrate? Is the gap against a stated requirement or a preferred qualification? And which kind of absence is it: evidence missing but the capability plausible from adjacent experience — the kind of doubt a screen exists to resolve — or evidence missing and the capability implausible? Say which, and why.
 
 3. **Recruiter screen question:** You're a recruiter, not the hiring manager. Your phone screen is 20 minutes: verify the person is real, roughly the right level, genuinely interested, and worth putting in front of the HM. Based on this resume and JD, what's the one thing you need to sanity-check? What are you listening for in the answer?
 
-4. **Findings:** The goal being measured is: does this resume reach a phone screen? Treat this like a code review — a table of findings, each with two independent scores. No verdict, no gut call.
+4. **Findings:** Treat this like a code review — a table of findings, each scored independently. No verdict, no gut call, no total. Score each finding on the severity and evidence-anchor scales defined in the report contract below; the contract is appended verbatim to your saved report, so never restate or summarize it. For each finding: severity, anchor, a verbatim quote or named absence, and one sentence on the consequence. Suppress anything that would rest on less than a reader-guess — generic resume advice, style preference, speculation you can't tie to this JD.
 
-   **Severity** — damage to phone-screen odds:
-   - **P0** — a screener who hits this stops reading
-   - **P1** — puts this resume behind competitors who don't have the issue
-   - **P2** — costs credibility or attention, but recoverable within the same read
-   - **P3** — polish; only a careful reader notices
+5. **Holistic read:** Step back from the checklist and the table. Read the career as one arc: what would a pattern-matching screener key on, and could this person plausibly do this job well? Where the arc and the findings disagree, say so and say what the disagreement means for the document — an arc stronger than the findings means the resume undersells experience the candidate likely has; an arc weaker than the findings means the claims outrun the career behind them. Neither read predicts the outcome; they are two lenses on the same document.
 
-   **Evidence anchor** — what the finding rests on. Use exactly 100, 75, or 50; pick the anchor whose claim you can honestly attach:
-   - **100** — verifiable from the document and JD alone: a stated minimum that is absent, a date gap, an internal contradiction. No assumptions about the reader required.
-   - **75** — the JD explicitly emphasizes something the resume demonstrably never shows. Light interpretation, no psychology.
-   - **50** — rests on assumed screener behavior or perception ("won't be seen on page 2," "this phrasing reads badly"). Plausible, but it is a guess about a reader, and must be labeled as such.
-
-   Anything you'd anchor below 50 — generic resume advice, style preference, speculation you can't tie to this JD — suppress silently. Severity and anchor are independent: a P0 can sit at anchor 50, a P3 at 100. For each finding: severity, anchor, a verbatim quote or named absence, and one sentence on the consequence.
-
-5. **Distance to screen:** Derived from the findings table — don't re-judge, read it off. Place this resume on the ladder and name the findings that put it there:
-   1. **Screen-ready** — nothing at P0/P1 stands; apply as-is.
-   2. **One fix away** — a specific finding or two, clearable by editing existing content, dominates the odds.
-   3. **Structural rework** — multiple P0/P1 findings require reframing or reordering the resume for this JD before it's worth submitting.
-   4. **Wrong-role fit** — the P0 findings rest on experience the candidate doesn't claim; no edit to this resume reaches a screen for this JD.
-
-6. **Holistic cross-check:** Step back from the checklist and the table. Read the career as one arc and ask: could this person plausibly do this job well? If that holistic read disagrees with the distance-to-screen placement, say so explicitly — which read would a real screener follow, and what does the disagreement tell you about this resume?
-
-7. **What would have changed the read:** Your findings stand. Now, staying strictly within what the resume already claims — invent nothing — what two or three changes to how this existing content is framed, ordered, expanded, or cut would move this resume up the ladder for this JD? Name the specific bullet or section, say what you'd do to it, and which finding it clears or downgrades.
+6. **What would change the read:** Your findings stand. Now, staying strictly within what the resume already claims — invent nothing — what two or three changes to how this existing content is framed, ordered, expanded, or cut would do the most for this JD? Name the specific bullet or section, say what you'd do to it, and which findings it clears or downgrades.
